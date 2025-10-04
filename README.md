@@ -1,13 +1,29 @@
-# Swiper - High-Performance PDF Extraction Tool
+# Swiper
 
-Convert PDF documents to markdown with embedded images using parallel processing.
+> Convert PDF documents to markdown with embedded images using parallel processing.
 
-## Status
+## Documentation
 
-**Current Version:** v1.0.0-modular
-**Architecture:** ✅ Modular (14 packages)
-**Status:** ✅ Refactor complete, production-ready
-**Old Version:** v0.9-monolithic (preserved as `swiper`)
+- **[QUICKSTART.md](docs/QUICKSTART.md)** - Complete user guide
+- **[PROPOSAL.md](docs/PROPOSAL.md)** - Architecture proposal (IMPLEMENTED)
+- **[INDEX.md](docs/INDEX.md)** - Documentation index
+- **[CLAUDE.md](CLAUDE.md)** - Development guidelines
+
+## Features
+
+- Parallel page processing
+- Advanced buffer pooling
+- Performance metrics
+- Result caching
+- Batch processing
+- PDF scanning and copying
+
+## Performance
+
+- ~8 pages/second
+- Configurable worker count
+- 4-tier buffer management (32KB-1MB)
+- Async logging
 
 ## Quick Start
 
@@ -45,58 +61,6 @@ go build -o swiper main.go
 # Scan and copy PDFs
 ./swiper-new -scan /path/to/scan
 ```
-
-## Documentation
-
-- **📖 [QUICKSTART.md](QUICKSTART.md)** - Complete user guide
-- **✅ [PROPOSAL.md](PROPOSAL.md)** - Architecture proposal (IMPLEMENTED)
-- **📋 [INDEX.md](INDEX.md)** - Documentation index
-- **🔧 [CLAUDE.md](CLAUDE.md)** - Development guidelines
-
-## Features
-
-- Parallel page processing
-- Advanced buffer pooling
-- Performance metrics
-- Result caching
-- Batch processing
-- PDF scanning and copying
-
-## Performance
-
-- ~8 pages/second
-- Configurable worker count
-- 4-tier buffer management (32KB-1MB)
-- Async logging
-
-## Architecture
-
-### NEW Modular Structure (IMPLEMENTED)
-```
-swiper/
-├── cmd/swiper/         # CLI entry point (150 lines)
-├── internal/           # Private packages
-│   ├── metrics/        # Performance tracking
-│   ├── pool/           # Resource pooling
-│   ├── cache/          # Result caching
-│   ├── config/         # Configuration
-│   ├── extractor/      # PDF extraction
-│   ├── scanner/        # PDF discovery
-│   └── batch/          # Batch processing
-└── pkg/swiper/         # Public API
-```
-
-### OLD Monolithic (Preserved)
-```
-main.go (1,776 lines) - Still available as reference
-```
-
-**Improvements:**
-- From 1 file to 14 focused files
-- Clear package boundaries
-- Unit testable components
-- Public API for library usage
-- 10x better maintainability
 
 ## Requirements
 
