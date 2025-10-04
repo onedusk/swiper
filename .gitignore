@@ -25,3 +25,6 @@ claude-flow.ps1
 hive-mind-prompt-*.txt
 
 docs/internal/
+
+.gemini/
+gha-creds-*.json
