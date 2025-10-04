@@ -1,0 +1,37 @@
+<toc version="1.0" llm-optimized="true">
+  <metadata>
+    <totalDocs>10</totalDocs>
+  </metadata>
+  <sections>
+    <chapter id="changelog" path="CHANGELOG.md" modified="2025-10-02T08:54:35Z" size="2514" words="319" readTime="1min" hash="sha256:2b225d195fd382d3">
+      <title>Changelog</title>
+      <summary>Changelog All notable changes to the Swiper PDF extraction tool will be documented in this file. ## [Unreleased] - 2025-09-26 ### Added - **BufferPoolManager**: Centralized buffer pool management...</summary>
+      <keywords>uses, memory, sizing, based, worker, slice, pdfscanner, handling, channel, concurrent</keywords>
+    </chapter>
+    <chapter id="index" path="INDEX.md" modified="2025-10-02T08:54:35Z" size="6323" words="841" readTime="3min" hash="sha256:1557f3d8525edb2e">
+      <title>Swiper Documentation Index</title>
+      <summary>Swiper Documentation Index Complete guide to Swiper PDF extraction tool and its architectural refactor. ## Quick Links - **Get Started:** [QUICKSTART.md](QUICKSTART.md) - Installation and usage -...</summary>
+      <keywords>verification, repository, **architecture:**, **development:**, internal, test, development, modules, proposed, improvements</keywords>
+    </chapter>
+    <chapter id="proposal" path="PROPOSAL.md" modified="2025-10-02T08:54:35Z" size="9022" words="1199" readTime="4min" hash="sha256:09f302de06fb5377">
+      <title>Swiper Modular Architecture Proposal</title>
+      <summary>Swiper Modular Architecture Proposal ## Purpose Propose a modular architecture for Swiper that follows Go best practices. This is a **proposal only** - no implementation will begin until approved....</summary>
+      <keywords>coverage, benchmark, plan, interface, modular, parsing, example, boundaries, clear, include</keywords>
+    </chapter>
+    <chapter id="quickstart" path="QUICKSTART.md" modified="2025-10-02T08:54:35Z" size="5920" words="788" readTime="3min" hash="sha256:b541d4433bfa92a1">
+      <title>Swiper Quick Start Guide</title>
+      <summary>Swiper Quick Start Guide ## What is Swiper? Swiper is a high-performance PDF extraction tool written in Go that converts PDF documents into markdown files with embedded images. It supports paralle...</summary>
+      <keywords>modular, processed, dependencies, pages), version, check, automatically, performance, proposed, text</keywords>
+    </chapter>
+    <chapter id="readme" path="README.md" modified="2025-10-04T08:02:44Z" size="1947" words="245" readTime="1min" hash="sha256:f45487c7cb7f2932">
+      <title>Swiper</title>
+      <summary>Swiper &gt; Convert PDF documents to markdown with embedded images using parallel processing. ## Documentation - **[QUICKSTART.md](docs/QUICKSTART.md)** - Complete user guide - **[PROPOSAL.md](docs/...</summary>
+      <keywords>processing, library, buffer, documentation, performance, parallel, license</keywords>
+    </chapter>
+    <chapter id="doc" path="doc.md" modified="2025-10-02T08:54:35Z" size="222105" words="30489" readTime="121min" hash="sha256:cfc160584c27c491">
+      <title>Go Modules Reference</title>
+      <summary>Go Modules Reference ## Introduction [¶](https://go.dev/ref/mod\#introduction) Modules are how Go manages dependencies. This document is a detailed reference manual for Go’s module system. For...</summary>
+      <keywords>separate, newlines, declared, patch, branch, protocol](https://go.dev/ref/mod#goproxy-protocol), indicates, vendorvendor/modules.txtgo, sort, proxy](https://go.dev/ref/mod#glos-module-proxy)</keywords>
+    </chapter>
+  </sections>
+</toc>
