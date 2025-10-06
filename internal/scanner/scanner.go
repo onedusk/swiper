@@ -17,8 +17,10 @@ import (
 
 // PDFScanner handles scanning and copying PDF files
 type PDFScanner struct {
-	scanDir          string
-	copyDir          string
+	scanDir          string  // User-provided scan directory (may be relative)
+	copyDir          string  // User-provided copy directory (may be relative)
+	scanDirAbs       string  // Absolute path of scan directory
+	copyDirAbs       string  // Absolute path of copy directory
 	logChan          chan string
 	bufferManager    *pool.BufferPoolManager
 	metricsCollector *metrics.Collector
@@ -36,8 +38,18 @@ func New(scanDir, copyDir string) (*PDFScanner, error) {
 		copyDir = "pdf-docs"
 	}
 
+	// Resolve to absolute paths for robust comparison
+	scanDirAbs, err := filepath.Abs(scanDir)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve scan directory: %w", err)
+	}
+	copyDirAbs, err := filepath.Abs(copyDir)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve copy directory: %w", err)
+	}
+
 	// Create the copy directory if it doesn't exist
-	if err := os.MkdirAll(copyDir, 0755); err != nil {
+	if err := os.MkdirAll(copyDirAbs, 0755); err != nil {
 		return nil, fmt.Errorf("failed to create copy directory: %v", err)
 	}
 
@@ -46,6 +58,8 @@ func New(scanDir, copyDir string) (*PDFScanner, error) {
 	scanner := &PDFScanner{
 		scanDir:          scanDir,
 		copyDir:          copyDir,
+		scanDirAbs:       scanDirAbs,
+		copyDirAbs:       copyDirAbs,
 		logChan:          logChan,
 		bufferManager:    pool.NewBufferPoolManager(metricsCollector),
 		metricsCollector: metricsCollector,
@@ -83,9 +97,22 @@ func (s *PDFScanner) FindPDFs() ([]string, error) {
 			return nil // Continue walking
 		}
 
-		// Skip the copy directory to avoid recursion
-		if info.IsDir() && path == s.copyDir {
-			return filepath.SkipDir
+		// Skip the copy directory to avoid recursion (absolute path comparison)
+		if info.IsDir() {
+			// Resolve current path to absolute for comparison
+			pathAbs, absErr := filepath.Abs(path)
+			if absErr == nil {
+				// Check exact match (copyDir itself)
+				if pathAbs == s.copyDirAbs {
+					s.logAsync("Skipping destination directory: %s", path)
+					return filepath.SkipDir
+				}
+				// Check if path is within copyDir subtree
+				if strings.HasPrefix(pathAbs, s.copyDirAbs+string(filepath.Separator)) {
+					s.logAsync("Skipping destination subdirectory: %s", path)
+					return filepath.SkipDir
+				}
+			}
 		}
 
 		// Check if it's a PDF file
