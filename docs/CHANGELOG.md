@@ -11,9 +11,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Context propagation through all public APIs (A01)
 - filepath.WalkDir migration for faster directory traversal (A02)
 - Atomic file copy with temp+rename pattern (A03)
-- Absolute path comparison for directory skip (A04)
 
-## [1.0.1] - 2025-10-06
+## [0.1.0] - 2025-10-06
+
+### Added
+- **Absolute path comparison for directory skip** ([#3](https://github.com/onedusk/swiper/pull/3))
+  - Added `scanDirAbs` and `copyDirAbs` fields to PDFScanner struct
+  - Resolve paths to absolute form using `filepath.Abs()` in `New()`
+  - Updated `FindPDFs()` to use absolute path comparison and prefix checking
+  - Prevents infinite recursion when copyDir is located within scanDir
+  - Added logging for skipped directories
+  - Implements A04 from ATOMIC_IMPROVEMENT_PLAN.md
+
+### Technical Details
+- `internal/scanner/scanner.go`: Robust directory skipping with canonical path comparison
+- `testdata/a04-nested/`: Test fixtures for validation
+
+## [0.0.2] - 2025-10-06
 
 ### Fixed
 - **Critical**: Resolved double-close channel panic in batch processing ([#2](https://github.com/onedusk/swiper/pull/2))
@@ -27,7 +41,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `internal/extractor/extractor.go`: Added `cleanupOnce sync.Once` field for idempotent cleanup
 - `internal/pool/tempdir.go`: Added `closed bool` flag and `mu sync.RWMutex` for thread-safe state management
 
-## [1.0.0] - 2025-09-26
+## [0.0.1] - 2025-09-26
 
 ### Added
 - **BufferPoolManager**: Centralized buffer pool management with multiple size tiers (32KB, 128KB, 256KB, 1MB) for adaptive buffer selection based on file size hints
