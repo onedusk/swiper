@@ -1,37 +1,209 @@
 <toc version="1.0" llm-optimized="true">
   <metadata>
-    <totalDocs>10</totalDocs>
+    <totalDocs>35</totalDocs>
   </metadata>
   <sections>
-    <chapter id="changelog" path="CHANGELOG.md" modified="2025-10-02T08:54:35Z" size="2514" words="319" readTime="1min" hash="sha256:2b225d195fd382d3">
+    <chapter id="a04-implementation-plan" path="A04_IMPLEMENTATION_PLAN.md" modified="2025-10-06T02:29:41Z" size="18275" words="2378" readTime="9min" hash="sha256:810884f7fbbfbf01">
+      <title>A04 Implementation Plan: Absolute Path Comparison for Directory Skip</title>
+      <summary>A04 Implementation Plan: Absolute Path Comparison for Directory Skip **Feature ID:** A04 **Priority:** RESILIENCE | SECURITY **Target Files:** `internal/scanner/scanner.go` **Branch:** `feature/a04...</summary>
+      <keywords>check, test, show, already, imported, breaking, changes, function), structure, output</keywords>
+    </chapter>
+    <chapter id="atomic-improvement-plan" path="ATOMIC_IMPROVEMENT_PLAN.md" modified="2025-10-06T02:14:10Z" size="58312" words="8003" readTime="32min" hash="sha256:3f10457271facb3f">
+      <title>ATOMIC IMPROVEMENT PLAN: Swiper PDF Extraction Tool</title>
+      <summary>ATOMIC IMPROVEMENT PLAN: Swiper PDF Extraction Tool Generated: 2025-10-06 Go Version: 1.21+ Baseline Commit: c4ce461 --- ## 1) BASELINE ### Commands to Establish Baseline ```bash # Static analy...</summary>
+      <keywords>tests, compare, practice, works, sizing, default, sizes, criteria:**, extra, full</keywords>
+    </chapter>
+    <chapter id="changelog" path="CHANGELOG.md" modified="2025-10-06T02:42:38Z" size="4302" words="536" readTime="2min" hash="sha256:dfdca9592ddbe18c">
       <title>Changelog</title>
-      <summary>Changelog All notable changes to the Swiper PDF extraction tool will be documented in this file. ## [Unreleased] - 2025-09-26 ### Added - **BufferPoolManager**: Centralized buffer pool management...</summary>
-      <keywords>uses, memory, sizing, based, worker, slice, pdfscanner, handling, channel, concurrent</keywords>
+      <summary>Changelog All notable changes to the Swiper PDF extraction tool will be documented in this file. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project a...</summary>
+      <keywords>pdfs, concurrency, extractpages, resource, management, comparison, closed, buffering, pattern, worker</keywords>
     </chapter>
     <chapter id="index" path="INDEX.md" modified="2025-10-02T08:54:35Z" size="6323" words="841" readTime="3min" hash="sha256:1557f3d8525edb2e">
       <title>Swiper Documentation Index</title>
       <summary>Swiper Documentation Index Complete guide to Swiper PDF extraction tool and its architectural refactor. ## Quick Links - **Get Started:** [QUICKSTART.md](QUICKSTART.md) - Installation and usage -...</summary>
-      <keywords>verification, repository, **architecture:**, **development:**, internal, test, development, modules, proposed, improvements</keywords>
+      <keywords>questions, library, internal, **usage:**, users, structure, refactor_plan.md, proposed, verification, caching</keywords>
+    </chapter>
+    <chapter id="ipp-enforcement" path="IPP_ENFORCEMENT.md" modified="2025-10-06T07:14:49Z" size="3197" words="414" readTime="1min" hash="sha256:f86c135df0b9658a">
+      <title>IPP Gate Enforcement</title>
+      <summary>IPP Gate Enforcement *Last Updated: 2025-10-06* ## Quick Start ```bash # Validate each gate in sequence ./scripts/ipp-enforce.sh SPEC A01 ./scripts/ipp-enforce.sh BUILD A01 ./scripts/ipp-enforce....</summary>
+      <keywords>required, **validates:**, gate, artifacts, automation, section, logs, fails, bypass, success</keywords>
     </chapter>
     <chapter id="proposal" path="PROPOSAL.md" modified="2025-10-02T08:54:35Z" size="9022" words="1199" readTime="4min" hash="sha256:09f302de06fb5377">
       <title>Swiper Modular Architecture Proposal</title>
       <summary>Swiper Modular Architecture Proposal ## Purpose Propose a modular architecture for Swiper that follows Go best practices. This is a **proposal only** - no implementation will begin until approved....</summary>
-      <keywords>coverage, benchmark, plan, interface, modular, parsing, example, boundaries, clear, include</keywords>
+      <keywords>modular, strategy, **option, proposal**, extraction, test, code, architecture, performance, locality</keywords>
     </chapter>
     <chapter id="quickstart" path="QUICKSTART.md" modified="2025-10-02T08:54:35Z" size="5920" words="788" readTime="3min" hash="sha256:b541d4433bfa92a1">
       <title>Swiper Quick Start Guide</title>
       <summary>Swiper Quick Start Guide ## What is Swiper? Swiper is a high-performance PDF extraction tool written in Go that converts PDF documents into markdown files with embedded images. It supports paralle...</summary>
-      <keywords>modular, processed, dependencies, pages), version, check, automatically, performance, proposed, text</keywords>
+      <keywords>version, extract, processed, poppler-utils, status:**, check, count, file, install, path</keywords>
     </chapter>
-    <chapter id="readme" path="README.md" modified="2025-10-04T08:02:44Z" size="1947" words="245" readTime="1min" hash="sha256:f45487c7cb7f2932">
+    <chapter id="readme" path="README.md" modified="2025-10-04T09:17:44Z" size="1877" words="234" readTime="1min" hash="sha256:7bf7fc23c97cb896">
       <title>Swiper</title>
       <summary>Swiper &gt; Convert PDF documents to markdown with embedded images using parallel processing. ## Documentation - **[QUICKSTART.md](docs/QUICKSTART.md)** - Complete user guide - **[PROPOSAL.md](docs/...</summary>
-      <keywords>processing, library, buffer, documentation, performance, parallel, license</keywords>
+      <keywords>parallel, license, buffer, library, documentation, processing, performance</keywords>
     </chapter>
     <chapter id="doc" path="doc.md" modified="2025-10-02T08:54:35Z" size="222105" words="30489" readTime="121min" hash="sha256:cfc160584c27c491">
       <title>Go Modules Reference</title>
       <summary>Go Modules Reference ## Introduction [¶](https://go.dev/ref/mod\#introduction) Modules are how Go manages dependencies. This document is a detailed reference manual for Go’s module system. For...</summary>
-      <keywords>separate, newlines, declared, patch, branch, protocol](https://go.dev/ref/mod#goproxy-protocol), indicates, vendorvendor/modules.txtgo, sort, proxy](https://go.dev/ref/mod#glos-module-proxy)</keywords>
+      <keywords>(for, work, synonym, packages, file](https://go.dev/ref/mod#glos-go-mod-file), release, details, suffixes, specify, test</keywords>
     </chapter>
+    <section id="internal">
+      <title>Internal</title>
+      <section id="internal-arc">
+        <title>.arc</title>
+        <chapter id="internal-arc-architecture-proposal" path="internal/.arc/ARCHITECTURE_PROPOSAL.md" modified="2025-10-02T08:54:35Z" size="15715" words="1982" readTime="7min" hash="sha256:a550a11ee0a8fe0e">
+          <title>Swiper Architecture Proposal</title>
+          <summary>Swiper Architecture Proposal ## Executive Summary This document proposes a refactored architecture for Swiper that follows Go&apos;s module documentation standards, enhances maintainability, improves t...</summary>
+          <keywords>follows, usage, backward, **better, clear, comprehensive, **exit, cannot, aggressive, reusable</keywords>
+        </chapter>
+        <chapter id="internal-arc-implementation-summary" path="internal/.arc/IMPLEMENTATION_SUMMARY.md" modified="2025-10-02T08:54:35Z" size="15040" words="2018" readTime="8min" hash="sha256:9e9d41e051031c4e">
+          <title>Swiper Refactor Implementation Summary</title>
+          <summary>Swiper Refactor Implementation Summary ## What Was Delivered Complete architectural redesign plan for Swiper following Go module best practices and the Implementation Proof Protocol. ### Created ...</summary>
+          <keywords>functionality, improvements, blitz, ready, unit, binary, management, directory, success, files</keywords>
+        </chapter>
+        <chapter id="internal-arc-refactor-plan" path="internal/.arc/REFACTOR_PLAN.md" modified="2025-10-02T08:54:35Z" size="11398" words="1417" readTime="5min" hash="sha256:392c65d0951ce114">
+          <title>Swiper Aggressive Refactor Plan</title>
+          <summary>Swiper Aggressive Refactor Plan ## Overview Complete architectural refactor of Swiper from a 1,776-line monolithic `main.go` to a modular, maintainable Go project following best practices. **Cons...</summary>
+          <keywords>internal/batch/, breaking, usage, pooling, pdfscanner, hours)**, options, bufferpoolmanager, commandpool, test</keywords>
+        </chapter>
+      </section>
+      <section id="internal-ctxt">
+        <title>.ctxt</title>
+        <chapter id="internal-ctxt-refactor-complete" path="internal/.ctxt/REFACTOR-COMPLETE.md" modified="2025-10-02T08:54:35Z" size="8294" words="1118" readTime="4min" hash="sha256:14030caeb85ecab2">
+          <title>SWIPER MODULAR REFACTOR - COMPLETE</title>
+          <summary>SWIPER MODULAR REFACTOR - COMPLETE ## Executive Summary Successfully transformed Swiper from a 1,776-line monolithic application into a clean, modular Go architecture with 14 focused files across 1...</summary>
+          <keywords>architecture, **clear, public, structure, testing, (monolithic), created, **unit, tests**, refactor</keywords>
+        </chapter>
+      </section>
+      <section id="internal-protocols">
+        <title>Protocols</title>
+        <section id="internal-protocols-eng-practices">
+          <title>Eng Practices</title>
+          <chapter id="internal-protocols-eng-practices-readme" path="internal/protocols/eng-practices/README.md" modified="2025-10-06T07:50:53Z" size="1568" words="194" readTime="1min" hash="sha256:fc8e999b9e95bc77">
+            <title>Google Engineering Practices Documentation</title>
+            <summary>Google Engineering Practices Documentation Google has many generalized engineering practices that cover all languages and all projects. These documents represent our collective experience of variou...</summary>
+            <keywords>google, possible, [the, code, means, review, documents, license, practices, projects</keywords>
+          </chapter>
+          <section id="internal-protocols-eng-practices-review">
+            <title>Review</title>
+            <section id="internal-protocols-eng-practices-review-developer">
+              <title>Developer</title>
+              <chapter id="internal-protocols-eng-practices-review-developer-cl-descriptions" path="internal/protocols/eng-practices/review/developer/cl-descriptions.md" modified="2025-10-06T07:50:53Z" size="8007" words="1324" readTime="5min" hash="sha256:f1231472e6769e01">
+                <title>Writing good CL descriptions</title>
+                <summary>Writing good CL descriptions A CL description is a public record of change, and it is important that it communicates: 1. **What** change is being made? This should summarize the major changes s...</summary>
+                <keywords>short, developers, actually, rest, being, details, submitting, searchers, examples, order</keywords>
+              </chapter>
+              <chapter id="internal-protocols-eng-practices-review-developer-handling-comments" path="internal/protocols/eng-practices/review/developer/handling-comments.md" modified="2025-10-06T07:50:53Z" size="4367" words="717" readTime="2min" hash="sha256:db3cab260f177821">
+                <title>How to handle reviewer comments</title>
+                <summary>How to handle reviewer comments When you&apos;ve sent a CL out for review, it&apos;s likely that your reviewer will respond with several comments on your CL. Here are some useful things to know about handl...</summary>
+                <keywords>that&apos;s, like, step, users, help, question, likely, feel, isn&apos;t, yourself</keywords>
+              </chapter>
+              <chapter id="internal-protocols-eng-practices-review-developer-index" path="internal/protocols/eng-practices/review/developer/index.md" modified="2025-10-06T07:50:53Z" size="647" words="95" readTime="1min" hash="sha256:10421c370a34c711">
+                <title>The CL author&apos;s guide to getting through code review</title>
+                <summary>The CL author&apos;s guide to getting through code review The pages in this section contain best practices for developers going through code review. These guidelines should help you get through reviews ...</summary>
+                <keywords>review, code, [how, read, through</keywords>
+              </chapter>
+              <chapter id="internal-protocols-eng-practices-review-developer-small-cls" path="internal/protocols/eng-practices/review/developer/small-cls.md" modified="2025-10-06T07:50:53Z" size="12289" words="2010" readTime="8min" hash="sha256:6bc55ce9a752bbb2">
+                <title>Small CLs</title>
+                <summary>Small CLs ## Why Write Small CLs? {#why} Small, simple CLs are: - **Reviewed more quickly.** It&apos;s easier for a reviewer to find five minutes several times to review small CLs than to set ...</summary>
+                <keywords>you&apos;re, another, refactorings, easier, going, wasted, general, here, consider, separate</keywords>
+              </chapter>
+            </section>
+            <chapter id="internal-protocols-eng-practices-review-emergencies" path="internal/protocols/eng-practices/review/emergencies.md" modified="2025-10-06T07:50:53Z" size="3157" words="536" readTime="2min" hash="sha256:f6123a06a6a86b93">
+              <title>Emergencies</title>
+              <summary>Emergencies Sometimes there are emergency CLs that must pass through the entire code review process as quickly as possible. ## What Is An Emergency? {#what} An emergency CL would be a **small**...</summary>
+              <keywords>time, next, should, disastrous, release, rolling, deadlines, hardware, deadline, really</keywords>
+            </chapter>
+            <chapter id="internal-protocols-eng-practices-review-index" path="internal/protocols/eng-practices/review/index.md" modified="2025-10-06T07:50:53Z" size="2767" words="436" readTime="1min" hash="sha256:c1f1f98dde14d0bb">
+              <title>Untitled</title>
+              <summary>## Introduction {#intro} A code review is a process where someone other than the author(s) of a piece of code examines that code. At Google, we use code review to maintain the quality of our code a...</summary>
+              <keywords>able, author&apos;s, in-person, documentation, reviewers, developer, developers, code, whose, does</keywords>
+            </chapter>
+            <section id="internal-protocols-eng-practices-review-reviewer">
+              <title>Reviewer</title>
+              <chapter id="internal-protocols-eng-practices-review-reviewer-comments" path="internal/protocols/eng-practices/review/reviewer/comments.md" modified="2025-10-06T07:50:53Z" size="4432" words="704" readTime="2min" hash="sha256:35118ebf2eec64df">
+                <title>How to write code review comments</title>
+                <summary>How to write code review comments ## Summary - Be kind. - Explain your reasoning. - Balance giving explicit directions with just pointing out problems and letting the developer decide....</summary>
+                <keywords>practice, about, result, something, because, think, thing, intent, guidance, things</keywords>
+              </chapter>
+              <chapter id="internal-protocols-eng-practices-review-reviewer-index" path="internal/protocols/eng-practices/review/reviewer/index.md" modified="2025-10-06T07:50:53Z" size="786" words="120" readTime="1min" hash="sha256:06299c5d45d89545">
+                <title>How to do a code review</title>
+                <summary>How to do a code review The pages in this section contain recommendations on the best way to do code reviews, based on long experience. All together they represent one complete document, broken up ...</summary>
+                <keywords>review, read, many, code</keywords>
+              </chapter>
+              <chapter id="internal-protocols-eng-practices-review-reviewer-looking-for" path="internal/protocols/eng-practices/review/reviewer/looking-for.md" modified="2025-10-06T07:50:53Z" size="11330" words="1909" readTime="7min" hash="sha256:0a6643fc4ce2bc73">
+                <title>What to look for in a code review</title>
+                <summary>What to look for in a code review Note: Always make sure to take into account [The Standard of Code Review](standard.md) when considering each of these points. ## Design The most important thin...</summary>
+                <keywords>guide, does, changes, functions, comments, guides, test, tests, google, long</keywords>
+              </chapter>
+              <chapter id="internal-protocols-eng-practices-review-reviewer-navigate" path="internal/protocols/eng-practices/review/reviewer/navigate.md" modified="2025-10-06T07:50:53Z" size="4157" words="723" readTime="2min" hash="sha256:6742ba45208ef35a">
+                <title>Navigating a CL in review</title>
+                <summary>Navigating a CL in review ## Summary Now that you know [what to look for](looking-for.md), what&apos;s the most efficient way to manage a review that&apos;s spread across multiple files? 1. Does the cha...</summary>
+                <keywords>step, more, while, make, like, idea, done, sequence, problems, re-work</keywords>
+              </chapter>
+              <chapter id="internal-protocols-eng-practices-review-reviewer-pushback" path="internal/protocols/eng-practices/review/reviewer/pushback.md" modified="2025-10-06T07:50:53Z" size="4369" words="711" readTime="2min" hash="sha256:a6eeefeee0f786c5">
+                <title>Handling pushback in code reviews</title>
+                <summary>Handling pushback in code reviews Sometimes a developer will push back on a code review. Either they will disagree with your suggestion or they will complain that you are being too strict in gene...</summary>
+                <keywords>right, them, additional, health, however, push, requested, usually, fade, developers</keywords>
+              </chapter>
+              <chapter id="internal-protocols-eng-practices-review-reviewer-speed" path="internal/protocols/eng-practices/review/reviewer/speed.md" modified="2025-10-06T07:50:53Z" size="7154" words="1184" readTime="4min" hash="sha256:06d02508ad748ed9">
+                <title>Speed of Code Reviews</title>
+                <summary>Speed of Code Reviews ## Why Should Code Reviews Be Fast? {#why} **At Google, we optimize for the speed at which a team of developers can produce a product together**, as opposed to optimizing f...</summary>
+                <keywords>break, takes, review, speed, every, task, ideally, otherwise, smaller, lgtm</keywords>
+              </chapter>
+              <chapter id="internal-protocols-eng-practices-review-reviewer-standard" path="internal/protocols/eng-practices/review/reviewer/standard.md" modified="2025-10-06T07:50:53Z" size="5745" words="948" readTime="3min" hash="sha256:c37144f9f8880092">
+                <title>The Standard of Code Review</title>
+                <summary>The Standard of Code Review The primary purpose of code review is to make sure that the overall code health of Google&apos;s code base is improving over time. All of the tools and processes of code re...</summary>
+                <keywords>time, they, comment, reviewer, through, reviewers, important, health, always, other</keywords>
+              </chapter>
+            </section>
+          </section>
+        </section>
+        <section id="internal-protocols-ipp">
+          <title>Ipp</title>
+          <chapter id="internal-protocols-ipp-def" path="internal/protocols/ipp/def.md" modified="2025-10-06T02:10:53Z" size="2970" words="411" readTime="1min" hash="sha256:824a371d7a0a7831">
+            <title>Theory to Practice Framework</title>
+            <summary>Theory to Practice Framework Outline for systematic process in transforming theoretical software concepts into proven implementations. This approach emphasizes rigor, validation, and documentation ...</summary>
+            <keywords>define, framework, validation, performance, implementation, case, approach, benchmarks, concept, testing</keywords>
+          </chapter>
+          <chapter id="internal-protocols-ipp-dev" path="internal/protocols/ipp/dev.md" modified="2025-10-06T02:11:57Z" size="4127" words="600" readTime="2min" hash="sha256:a91a412437f3530e">
+            <title>Parallel Development Tracks</title>
+            <summary>Parallel Development Tracks ## Parallel Track Approach Since everything needs exploration, you can work on multiple tracks simultaneously while maintaining dependencies: ### Track 1: Core Proof (...</summary>
+            <keywords>week, agents, core, does, you&apos;re, integration, metrics, agent, needs, priority</keywords>
+          </chapter>
+          <chapter id="internal-protocols-ipp-enforcement" path="internal/protocols/ipp/enforcement.md" modified="2025-10-06T03:19:36Z" size="2058" words="259" readTime="1min" hash="sha256:415d18ad122907b8">
+            <title>IPP Gate Enforcement Mechanisms</title>
+            <summary>IPP Gate Enforcement Mechanisms *Last Updated: 2025-10-06* ## Enforcement Layers ### 1. Automation Script Enforcement **Location:** `scripts/ipp-enforce.sh` (to be created) **Responsibilities:**...</summary>
+            <keywords>enforcement, updated, human, review, verify, evidence, **location:**, production, approval, created)</keywords>
+          </chapter>
+          <chapter id="internal-protocols-ipp-flow" path="internal/protocols/ipp/flow.md" modified="2025-10-06T02:09:29Z" size="2855" words="417" readTime="1min" hash="sha256:df37878d40318fa3">
+            <title>Implementation Flow</title>
+            <summary>Implementation Flow ## Software Development Theory-to-Proof Flow ### Main Flow **Concept** → **Research** → **Design** → **Prototype** → **Build** → **Test** → **Validate** → **Proo...</summary>
+            <keywords>phase, proof, theory, implementation, stage, concept, flow, complete, development, track:**</keywords>
+          </chapter>
+          <chapter id="internal-protocols-ipp-gates" path="internal/protocols/ipp/gates.md" modified="2025-10-06T03:20:23Z" size="1639" words="254" readTime="1min" hash="sha256:2389d8380be9fde2">
+            <title>IPP Gate Requirements</title>
+            <summary>IPP Gate Requirements *Last Updated: 2025-10-06* ## Evidence Required Per Gate ### IPP-SPEC Gate **Required Files:** - `docs/ANN_IMPLEMENTATION_PLAN.md` - Success criteria (numerical thresholds) ...</summary>
+            <keywords>plan, build, evidence, human, changes, rollback, **required:**, exits, gate, success</keywords>
+          </chapter>
+          <chapter id="internal-protocols-ipp-glossary" path="internal/protocols/ipp/glossary.md" modified="2025-10-06T02:10:06Z" size="4471" words="603" readTime="2min" hash="sha256:65033b883c1a31f4">
+            <title>IPP Glossary</title>
+            <summary>IPP Glossary ## Software Development Theory-to-Proof Glossary ### A **Algorithm Complexity** - Mathematical expression of resource usage (time/space) relative to input size, typically expressed i...</summary>
+            <keywords>development, requirements, criteria**, work, implementation, extreme, against, defined, process, glossary</keywords>
+          </chapter>
+          <chapter id="internal-protocols-ipp-prior-art" path="internal/protocols/ipp/prior_art.md" modified="2025-10-06T02:11:15Z" size="1843" words="260" readTime="1min" hash="sha256:4a7bf8083d1747f5">
+            <title>Prior Art and Lessons Learned</title>
+            <summary>Prior Art and Lessons Learned **Prior art** refers to any existing work, implementations, or documented knowledge that relates to your concept and existed before you started working on it. This inc...</summary>
+            <keywords>approaches, solutions, work, code, systems, helps, research, performance, academic, previous</keywords>
+          </chapter>
+          <chapter id="internal-protocols-ipp-protocols" path="internal/protocols/ipp/protocols.md" modified="2025-10-06T03:19:02Z" size="2015" words="274" readTime="1min" hash="sha256:2c9e4a1560ac325c">
+            <title>IPP Protocol Definitions</title>
+            <summary>IPP Protocol Definitions *Last Updated: 2025-10-06* ## Core Protocols ### IPP-SPEC (Specification Gate) - **I**mprovement ID assigned (A01-A10) - **P**lan document created (20+ steps) - **P**reco...</summary>
+            <keywords>test, criteria, benchmarks, logs, code, evidence, cannot, ipp-valid, pass, until</keywords>
+          </chapter>
+        </section>
+      </section>
+    </section>
   </sections>
 </toc>

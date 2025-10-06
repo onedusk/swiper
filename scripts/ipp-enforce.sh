@@ -10,6 +10,7 @@ IMPROVEMENT="${2:-}"
 LOG_DIR="logs/ipp-gates"
 TIMESTAMP=$(date +%Y%m%d-%H%M%S)
 EVIDENCE_DIR="docs/evidence"
+LOG_FILE="/dev/null"
 
 # Colors for output
 RED='\033[0;31m'
@@ -38,27 +39,40 @@ EOF
 }
 
 # Logging
+log_append() {
+    printf '[%s] %s\n' "$1" "$2" >> "$LOG_FILE"
+}
+
 log_info() {
-    echo -e "${GREEN}[INFO]${NC} $1"
+    local message="$*"
+    log_append "INFO" "$message"
+    printf '%b\n' "${GREEN}[INFO]${NC} $message"
 }
 
 log_error() {
-    echo -e "${RED}[ERROR]${NC} $1" >&2
+    local message="$*"
+    log_append "ERROR" "$message"
+    printf '%b\n' "${RED}[ERROR]${NC} $message" >&2
 }
 
 log_warn() {
-    echo -e "${YELLOW}[WARN]${NC} $1"
+    local message="$*"
+    log_append "WARN" "$message"
+    printf '%b\n' "${YELLOW}[WARN]${NC} $message"
 }
 
 log_gate() {
-    echo -e "${GREEN}[GATE:${GATE}]${NC} $1"
+    local message="$*"
+    local label="GATE:${GATE}"
+    log_append "$label" "$message"
+    printf '%b\n' "${GREEN}[GATE:${GATE}]${NC} $message"
 }
 
 # Setup
 setup() {
     mkdir -p "$LOG_DIR" "$EVIDENCE_DIR"
     LOG_FILE="$LOG_DIR/${TIMESTAMP}-${IMPROVEMENT}-${GATE}.log"
-    exec > >(tee -a "$LOG_FILE") 2>&1
+    : > "$LOG_FILE"
 
     log_info "IPP Gate Enforcement"
     log_info "Gate: $GATE"
@@ -66,6 +80,7 @@ setup() {
     log_info "Timestamp: $TIMESTAMP"
     log_info "Log: $LOG_FILE"
     echo ""
+    printf '\n' >> "$LOG_FILE"
 }
 
 # IPP-SPEC Gate
@@ -95,10 +110,10 @@ gate_spec() {
     # Count steps
     local step_count=$(grep -c "^- \[ \]" "$plan_file" || echo 0)
     if [[ $step_count -lt 20 ]]; then
-        log_warn "Step count ($step_count) below recommended minimum (20)"
-    else
-        log_info "✓ Step count: $step_count"
+        log_error "Implementation checklist must contain at least 20 steps (found $step_count)"
+        return 1
     fi
+    log_info "✓ Step count: $step_count"
 
     log_gate "SPEC gate PASSED"
     return 0
@@ -205,6 +220,11 @@ gate_valid() {
 # IPP-PROVE Gate
 gate_prove() {
     log_gate "Validating PROVE gate..."
+
+    if ! command -v gh >/dev/null 2>&1; then
+        log_error "GitHub CLI (gh) is required for the PROVE gate"
+        return 1
+    fi
 
     # Check PR exists
     local pr_number=$(gh pr view --json number -q .number 2>/dev/null || echo "")

@@ -44,9 +44,6 @@ sudo apt-get install poppler-utils
 ```bash
 # Build modular version
 go build -o swiper-new cmd/swiper/main.go
-
-# Or build monolithic version (preserved)
-go build -o swiper main.go
 ```
 
 ### Use

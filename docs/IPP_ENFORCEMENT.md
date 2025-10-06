@@ -32,7 +32,7 @@ Each improvement (A01-A10) must pass through 5 gates:
 - Contains "Success Criteria" section
 - Contains "Rollback Strategy" section
 - Contains "Implementation Checklist"
-- Minimum 20 steps recommended
+- Minimum 20 steps required
 
 **Example:**
 ```bash
@@ -82,6 +82,7 @@ git checkout -b feature/a04-absolute-paths
 ## PROVE Gate
 
 **Validates:**
+- GitHub CLI (`gh`) installed and authenticated
 - PR exists for current branch
 - PR description includes evidence
 - CI checks passing or pending
