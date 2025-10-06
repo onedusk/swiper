@@ -2,7 +2,32 @@
 
 All notable changes to the Swiper PDF extraction tool will be documented in this file.
 
-## [Unreleased] - 2025-09-26
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+
+### Planned
+- Context propagation through all public APIs (A01)
+- filepath.WalkDir migration for faster directory traversal (A02)
+- Atomic file copy with temp+rename pattern (A03)
+- Absolute path comparison for directory skip (A04)
+
+## [1.0.1] - 2025-10-06
+
+### Fixed
+- **Critical**: Resolved double-close channel panic in batch processing ([#2](https://github.com/onedusk/swiper/pull/2))
+  - Made `Cleanup()` idempotent using `sync.Once` to prevent duplicate cleanup calls
+  - Removed duplicate cleanup from `ExtractPages()` method
+  - Fixed race condition in `TempDirPool` initialization goroutine
+  - Added closed flag with mutex protection to prevent sending to closed channels
+  - Tested successfully with 61 PDFs (1,514 pages) in batch mode
+
+### Technical Details
+- `internal/extractor/extractor.go`: Added `cleanupOnce sync.Once` field for idempotent cleanup
+- `internal/pool/tempdir.go`: Added `closed bool` flag and `mu sync.RWMutex` for thread-safe state management
+
+## [1.0.0] - 2025-09-26
 
 ### Added
 - **BufferPoolManager**: Centralized buffer pool management with multiple size tiers (32KB, 128KB, 256KB, 1MB) for adaptive buffer selection based on file size hints
