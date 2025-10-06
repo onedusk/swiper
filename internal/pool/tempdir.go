@@ -3,11 +3,15 @@ package pool
 import (
 	"os"
 	"path/filepath"
+	"sync"
 )
 
 // TempDirPool manages a pool of temporary directories
 type TempDirPool struct {
-	pool chan string
+	pool      chan string
+	closeOnce sync.Once
+	closed    bool
+	mu        sync.RWMutex
 }
 
 // NewTempDirPool creates a new temporary directory pool
@@ -26,6 +30,17 @@ func (p *TempDirPool) init(size int) {
 		if err != nil {
 			continue
 		}
+
+		// Check if pool is closed before sending
+		p.mu.RLock()
+		isClosed := p.closed
+		p.mu.RUnlock()
+
+		if isClosed {
+			os.RemoveAll(tempDir)
+			return
+		}
+
 		select {
 		case p.pool <- tempDir:
 		default:
@@ -63,8 +78,15 @@ func (p *TempDirPool) ReturnTempDir(dir string) {
 
 // Cleanup removes all temp directories in the pool
 func (p *TempDirPool) Cleanup() {
-	close(p.pool)
-	for dir := range p.pool {
-		os.RemoveAll(dir)
-	}
+	p.closeOnce.Do(func() {
+		// Mark as closed to prevent init from sending
+		p.mu.Lock()
+		p.closed = true
+		p.mu.Unlock()
+
+		close(p.pool)
+		for dir := range p.pool {
+			os.RemoveAll(dir)
+		}
+	})
 }
