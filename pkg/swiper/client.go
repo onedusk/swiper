@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	"swiper/internal/batch"
-	"swiper/internal/config"
-	"swiper/internal/extractor"
-	"swiper/internal/scanner"
+	"github.com/onedusk/swiper/internal/batch"
+	"github.com/onedusk/swiper/internal/config"
+	"github.com/onedusk/swiper/internal/extractor"
+	"github.com/onedusk/swiper/internal/scanner"
 )
 
 // Client provides high-level PDF extraction API

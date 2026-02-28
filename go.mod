@@ -1,4 +1,4 @@
-module swiper
+module github.com/onedusk/swiper
 
 go 1.24.0
 

@@ -13,7 +13,7 @@ import (
 	"time"
 	"io"
 
-	"swiper/internal/cache"
+	"github.com/onedusk/swiper/internal/cache"
 )
 
 // processPage extracts text and images from a page and writes a Markdown file

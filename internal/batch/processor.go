@@ -10,9 +10,9 @@ import (
 	"sync"
 	"time"
 
-	"swiper/internal/extractor"
-	"swiper/internal/metrics"
-	"swiper/internal/pool"
+	"github.com/onedusk/swiper/internal/extractor"
+	"github.com/onedusk/swiper/internal/metrics"
+	"github.com/onedusk/swiper/internal/pool"
 )
 
 // Processor handles batch processing of multiple PDF files

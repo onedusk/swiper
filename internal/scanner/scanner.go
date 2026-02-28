@@ -11,8 +11,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"swiper/internal/metrics"
-	"swiper/internal/pool"
+	"github.com/onedusk/swiper/internal/metrics"
+	"github.com/onedusk/swiper/internal/pool"
 )
 
 // PDFScanner handles scanning and copying PDF files

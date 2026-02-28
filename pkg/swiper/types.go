@@ -1,6 +1,6 @@
 package swiper
 
-import "swiper/internal/config"
+import "github.com/onedusk/swiper/internal/config"
 
 // Result represents the result of a PDF extraction
 type Result struct {

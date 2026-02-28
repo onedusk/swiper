@@ -15,9 +15,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	"swiper/internal/cache"
-	"swiper/internal/metrics"
-	"swiper/internal/pool"
+	"github.com/onedusk/swiper/internal/cache"
+	"github.com/onedusk/swiper/internal/metrics"
+	"github.com/onedusk/swiper/internal/pool"
 )
 
 // Extractor encapsulates the PDF extraction logic
