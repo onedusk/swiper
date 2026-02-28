@@ -37,6 +37,7 @@ type Extractor struct {
 	ctx              context.Context
 	cancel           context.CancelFunc
 	commandPool      *pool.CommandPool
+	cleanupOnce      sync.Once
 }
 
 // New creates a new extractor instance
@@ -247,22 +248,20 @@ func (e *Extractor) ExtractPages() error {
 	// Print metrics
 	e.metricsCollector.PrintSummary("single")
 
-	// Cleanup
-	e.cancel()
-	e.tempDirPool.Cleanup()
-
-	// Close log channel and ensure all logs are flushed
-	close(e.logChan)
+	// Cleanup resources
+	e.Cleanup()
 	time.Sleep(100 * time.Millisecond)
 
 	return nil
 }
 
-// Cleanup releases resources
+// Cleanup releases resources. Safe to call multiple times.
 func (e *Extractor) Cleanup() {
-	e.cancel()
-	e.tempDirPool.Cleanup()
-	close(e.logChan)
+	e.cleanupOnce.Do(func() {
+		e.cancel()
+		e.tempDirPool.Cleanup()
+		close(e.logChan)
+	})
 }
 
 // getPageCount returns the total number of pages in the PDF

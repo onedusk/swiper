@@ -9,6 +9,10 @@ All notable changes to the Swiper PDF extraction tool will be documented in this
 - **Module path qualified**: Changed `module swiper` to `module github.com/onedusk/swiper` in `go.mod` to enable cross-module imports
 - Updated 14 import paths across 7 files (`cmd/swiper/main.go`, `pkg/swiper/client.go`, `pkg/swiper/types.go`, `internal/batch/processor.go`, `internal/extractor/extractor.go`, `internal/extractor/page.go`, `internal/scanner/scanner.go`)
 
+### Fixed
+
+- **Double-close panic in Extractor**: `Cleanup()` now uses `sync.Once` to prevent panic when called multiple times (e.g. deferred `Cleanup()` after `ExtractPages()` already cleaned up resources)
+
 ## [Unreleased] - 2025-09-26
 
 ### Added
