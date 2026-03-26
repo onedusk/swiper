@@ -1,6 +1,7 @@
 package batch
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -25,7 +26,17 @@ type Processor struct {
 	workerPool       chan struct{}
 	metricsCollector *metrics.Collector
 	bufferManager    *pool.BufferPoolManager
+	resume           bool
 }
+
+// progressState tracks batch processing progress for resume support.
+type progressState struct {
+	Completed []string `json:"completed"`
+	Failed    []string `json:"failed"`
+	Timestamp string   `json:"timestamp"`
+}
+
+const progressFileName = ".swiper-progress"
 
 // New creates a new batch processor
 func New(inputDir, outputDir string, processCount int) (*Processor, error) {
@@ -152,11 +163,42 @@ func (b *Processor) processPDF(pdfPath string, index, total int) error {
 	return nil
 }
 
+// SetResume enables resume mode for batch processing.
+func (b *Processor) SetResume(enabled bool) {
+	b.resume = enabled
+}
+
+func (b *Processor) progressFilePath() string {
+	return filepath.Join(b.outputDir, progressFileName)
+}
+
+func (b *Processor) loadProgress() *progressState {
+	data, err := os.ReadFile(b.progressFilePath())
+	if err != nil {
+		return &progressState{}
+	}
+	var state progressState
+	if err := json.Unmarshal(data, &state); err != nil {
+		return &progressState{}
+	}
+	return &state
+}
+
+func (b *Processor) saveProgress(state *progressState) {
+	state.Timestamp = time.Now().Format(time.RFC3339)
+	data, err := json.MarshalIndent(state, "", "  ")
+	if err != nil {
+		return
+	}
+	if err := os.WriteFile(b.progressFilePath(), data, 0644); err != nil {
+		b.logAsync("Warning: failed to save progress file: %v", err)
+	}
+}
+
 // ProcessAll processes all PDF files in the directory
 func (b *Processor) ProcessAll() error {
 	b.logAsync("Scanning directory: %s", b.inputDir)
 
-	// Find all PDF files
 	pdfFiles, err := b.FindPDFs()
 	if err != nil {
 		return err
@@ -167,42 +209,75 @@ func (b *Processor) ProcessAll() error {
 		return nil
 	}
 
+	// Resume support: skip already-completed PDFs
+	var state *progressState
+	if b.resume {
+		state = b.loadProgress()
+		completedSet := make(map[string]bool, len(state.Completed))
+		for _, name := range state.Completed {
+			completedSet[name] = true
+		}
+		var remaining []string
+		for _, path := range pdfFiles {
+			if !completedSet[filepath.Base(path)] {
+				remaining = append(remaining, path)
+			}
+		}
+		if len(remaining) < len(pdfFiles) {
+			b.logAsync("Resuming: %d/%d PDFs already completed, %d remaining", len(pdfFiles)-len(remaining), len(pdfFiles), len(remaining))
+		}
+		pdfFiles = remaining
+		state.Failed = nil // Reset failed list for this run
+	} else {
+		state = &progressState{}
+	}
+
+	if len(pdfFiles) == 0 {
+		b.logAsync("All PDFs already processed")
+		return nil
+	}
+
 	b.logAsync("Found %d PDF files to process", len(pdfFiles))
 	b.logAsync("Output directory: %s", b.outputDir)
 	b.logAsync("Using %d processes per PDF, %d concurrent PDFs\n", b.processCount, b.concurrentPDFs)
 
 	overallStart := time.Now()
 
-	// Use WaitGroup for tracking completion
 	var wg sync.WaitGroup
-	// Mutex for protecting shared state
 	var mu sync.Mutex
 	successCount := 0
 	failedPDFs := []string{}
 
-	// Process PDFs concurrently with a semaphore to limit parallelism
 	for i, pdfPath := range pdfFiles {
 		wg.Add(1)
-		b.workerPool <- struct{}{} // Acquire semaphore
+		b.workerPool <- struct{}{}
 
 		go func(path string, index int) {
 			defer wg.Done()
-			defer func() { <-b.workerPool }() // Release semaphore
+			defer func() { <-b.workerPool }()
 
+			baseName := filepath.Base(path)
 			if err := b.processPDF(path, index+1, len(pdfFiles)); err != nil {
-				b.logAsync("Failed to process %s: %v", filepath.Base(path), err)
+				b.logAsync("Failed to process %s: %v", baseName, err)
 				mu.Lock()
-				failedPDFs = append(failedPDFs, filepath.Base(path))
+				failedPDFs = append(failedPDFs, baseName)
+				if b.resume {
+					state.Failed = append(state.Failed, baseName)
+					b.saveProgress(state)
+				}
 				mu.Unlock()
 			} else {
 				mu.Lock()
 				successCount++
+				if b.resume {
+					state.Completed = append(state.Completed, baseName)
+					b.saveProgress(state)
+				}
 				mu.Unlock()
 			}
 		}(pdfPath, i)
 	}
 
-	// Wait for all PDFs to complete
 	wg.Wait()
 
 	overallDuration := time.Since(overallStart).Seconds()
@@ -226,6 +301,11 @@ func (b *Processor) ProcessAll() error {
 
 	b.logAsync("\nAll extracted content saved to: %s", b.outputDir)
 
+	// Clean completion: remove progress file
+	if b.resume && len(failedPDFs) == 0 {
+		os.Remove(b.progressFilePath())
+	}
+
 	// Flush logger
 	b.logger.Close()
 
@@ -236,29 +316,11 @@ func (b *Processor) ProcessAll() error {
 func calculateOptimalConcurrentPDFs(processCount int) int {
 	concurrentPDFs := processCount / 4
 
-	// Apply min/max bounds based on system capabilities
+	// Apply min/max bounds
 	if concurrentPDFs < 2 {
 		concurrentPDFs = 2
 	} else if concurrentPDFs > 8 {
-		// Cap at 8 to prevent resource exhaustion
 		concurrentPDFs = 8
-	}
-
-	// Adjust based on available memory
-	var memStats runtime.MemStats
-	runtime.ReadMemStats(&memStats)
-	availableMemGB := float64(memStats.Sys) / (1024 * 1024 * 1024)
-
-	if availableMemGB < 2 {
-		// Low memory: reduce concurrency
-		if concurrentPDFs > 2 {
-			concurrentPDFs = 2
-		}
-	} else if availableMemGB < 4 {
-		// Medium memory: moderate concurrency
-		if concurrentPDFs > 4 {
-			concurrentPDFs = 4
-		}
 	}
 
 	return concurrentPDFs

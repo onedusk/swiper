@@ -132,3 +132,70 @@ func TestExtractPages_IndexContainsLinks(t *testing.T) {
 		t.Error("index.md should link to page_2")
 	}
 }
+
+func TestExtractTextBatch(t *testing.T) {
+	requirePopplerPage(t)
+	outDir := t.TempDir()
+
+	ext, err := New(testdataPath("simple.pdf"), outDir, 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ext.Cleanup()
+
+	pages, err := ext.extractTextBatch(1, 2)
+	if err != nil {
+		t.Fatalf("extractTextBatch failed: %v", err)
+	}
+	if len(pages) != 2 {
+		t.Fatalf("expected 2 pages, got %d", len(pages))
+	}
+	if pages[1] == "" {
+		t.Fatal("page 1 text is empty")
+	}
+	if pages[2] == "" {
+		t.Fatal("page 2 text is empty")
+	}
+}
+
+func BenchmarkSinglePageExtraction(b *testing.B) {
+	if _, err := exec.LookPath("pdfinfo"); err != nil {
+		b.Skip("poppler-utils not found")
+	}
+	outDir := b.TempDir()
+	ext, err := New(testdataPath("simple.pdf"), outDir, 1)
+	if err != nil {
+		b.Fatal(err)
+	}
+	defer ext.Cleanup()
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		ext.resultCache.Clear()
+		_, err := ext.extractTextFromPage(1)
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func BenchmarkBatchPageExtraction(b *testing.B) {
+	if _, err := exec.LookPath("pdfinfo"); err != nil {
+		b.Skip("poppler-utils not found")
+	}
+	outDir := b.TempDir()
+	ext, err := New(testdataPath("simple.pdf"), outDir, 1)
+	if err != nil {
+		b.Fatal(err)
+	}
+	defer ext.Cleanup()
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		ext.resultCache.Clear()
+		_, err := ext.extractTextBatch(1, 2)
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
+}

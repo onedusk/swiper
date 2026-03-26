@@ -51,7 +51,16 @@ func (p *TempDirPool) init(size int) {
 func (p *TempDirPool) GetTempDir() (string, error) {
 	select {
 	case dir := <-p.pool:
-		// Clear the directory before reuse
+		// Guard against use after Cleanup
+		p.closeMu.Lock()
+		if p.closed {
+			p.closeMu.Unlock()
+			os.RemoveAll(dir)
+			return os.MkdirTemp("", "pdf_images_*")
+		}
+		p.closeMu.Unlock()
+
+		// Clear directory contents before reuse
 		entries, _ := os.ReadDir(dir)
 		for _, entry := range entries {
 			os.RemoveAll(filepath.Join(dir, entry.Name()))

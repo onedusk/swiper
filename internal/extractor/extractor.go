@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/onedusk/swiper/internal/cache"
+	"github.com/onedusk/swiper/internal/config"
 	alog "github.com/onedusk/swiper/internal/log"
 	"github.com/onedusk/swiper/internal/metrics"
 	"github.com/onedusk/swiper/internal/pool"
@@ -24,7 +25,7 @@ import (
 
 // Extractor encapsulates the PDF extraction logic
 type Extractor struct {
-	pdfFile          string
+	pdfPath          string
 	outputDir        string
 	imageDir         string
 	processCount     int
@@ -42,19 +43,22 @@ type Extractor struct {
 	cleanupOnce      sync.Once
 	pageResults      []*PageResult
 	pageResultsMu    sync.Mutex
+	quiet            bool
+	pageRanges       []config.PageRange
+	perPageImageDirs bool
 }
 
 // New creates a new extractor instance
-func New(pdfFile, outputDir string, processCount int, opts ...Option) (*Extractor, error) {
+func New(pdfPath, outputDir string, processCount int, opts ...Option) (*Extractor, error) {
 	// Ensure the PDF file exists
-	if _, err := os.Stat(pdfFile); os.IsNotExist(err) {
-		return nil, fmt.Errorf("PDF file not found: %s", pdfFile)
+	if _, err := os.Stat(pdfPath); os.IsNotExist(err) {
+		return nil, fmt.Errorf("PDF file not found: %s", pdfPath)
 	}
 
 	// If no output directory is provided, use the PDF filename (without extension)
 	if outputDir == "" {
-		base := filepath.Base(pdfFile)
-		ext := filepath.Ext(pdfFile)
+		base := filepath.Base(pdfPath)
+		ext := filepath.Ext(pdfPath)
 		outputDir = strings.TrimSuffix(base, ext)
 	}
 
@@ -96,9 +100,6 @@ func New(pdfFile, outputDir string, processCount int, opts ...Option) (*Extracto
 		logChannelSize = processCount * 50
 	}
 
-	// Create async logger
-	logger := alog.New(logChannelSize, false)
-
 	// Pre-create temp directories pool
 	tempPoolSize := processCount * 2
 	if processCount > 8 {
@@ -110,13 +111,12 @@ func New(pdfFile, outputDir string, processCount int, opts ...Option) (*Extracto
 	ctx, cancel := context.WithCancel(context.Background())
 
 	extractor := &Extractor{
-		pdfFile:          pdfFile,
+		pdfPath:          pdfPath,
 		outputDir:        outputDir,
 		processCount:     processCount,
 		imageDir:         imageDir,
 		bufferPool:       bufferPool,
 		bufferManager:    bufferManager,
-		logger:           logger,
 		tempDirPool:      tempDirPool,
 		pageCount:        -1, // Cache -1 means not yet fetched
 		resultCache:      cache.NewResultCache(),
@@ -129,6 +129,11 @@ func New(pdfFile, outputDir string, processCount int, opts ...Option) (*Extracto
 	// Apply options
 	for _, opt := range opts {
 		opt(extractor)
+	}
+
+	// Create logger after options (quiet flag may be set)
+	if extractor.logger == nil {
+		extractor.logger = alog.New(logChannelSize, extractor.quiet)
 	}
 
 	return extractor, nil
@@ -158,6 +163,27 @@ func WithLogger(l *alog.AsyncLogger) Option {
 	}
 }
 
+// WithQuiet enables quiet mode (suppresses non-error output)
+func WithQuiet(q bool) Option {
+	return func(e *Extractor) {
+		e.quiet = q
+	}
+}
+
+// WithPageRanges sets page ranges to extract (nil = all pages)
+func WithPageRanges(ranges []config.PageRange) Option {
+	return func(e *Extractor) {
+		e.pageRanges = ranges
+	}
+}
+
+// WithPerPageImageDirs organizes images into per-page subdirectories
+func WithPerPageImageDirs(enabled bool) Option {
+	return func(e *Extractor) {
+		e.perPageImageDirs = enabled
+	}
+}
+
 // ExtractPages processes all pages concurrently
 func (e *Extractor) ExtractPages() error {
 	totalPages, err := e.getPageCount()
@@ -165,33 +191,63 @@ func (e *Extractor) ExtractPages() error {
 		return err
 	}
 
-	// Calculate optimal worker count based on PDF size
+	processes := e.calculateWorkerCount(totalPages)
+
+	// Determine which pages to extract
+	var pagesToExtract []int
+	if e.pageRanges != nil {
+		pagesToExtract = config.ExpandPages(e.pageRanges, totalPages)
+	} else {
+		pagesToExtract = config.ExpandPages(nil, totalPages)
+	}
+	extractCount := len(pagesToExtract)
+
+	e.logAsync("Extracting %d pages from %s using %d processes", extractCount, e.pdfPath, processes)
+	startTime := time.Now()
+
+	e.pageResults = make([]*PageResult, 0, extractCount)
+
+	// Run worker pool
+	successCount, errorCount := e.runWorkerPool(processes, extractCount, pagesToExtract, startTime)
+
+	if err := e.createMainMarkdown(); err != nil {
+		return err
+	}
+
+	e.reportExtractionSummary(startTime, successCount, errorCount, extractCount)
+
+	return nil
+}
+
+// calculateWorkerCount determines the optimal number of workers based on
+// page count, CPU count, and available memory.
+func (e *Extractor) calculateWorkerCount(totalPages int) int {
 	processes := e.processCount
 	if totalPages < processes {
 		processes = totalPages
 	}
 
-	// Adaptive worker scaling for very large PDFs
+	// Adaptive scaling for very large PDFs
 	if totalPages > 500 && processes > 8 {
 		processes = 8 + (processes-8)/2
 	}
 
-	e.logAsync("Extracting %d pages from %s using %d processes", totalPages, e.pdfFile, processes)
-	startTime := time.Now()
+	return processes
+}
 
-	e.pageResults = make([]*PageResult, 0, totalPages)
-
+// runWorkerPool starts worker goroutines, enqueues pages, and waits for completion.
+// Returns success and error counts.
+func (e *Extractor) runWorkerPool(processes, extractCount int, pagesToExtract []int, startTime time.Time) (int64, int64) {
 	var wg sync.WaitGroup
 
-	// Smart channel sizing based on PDF characteristics
-	pageBufferSize := calculateOptimalBufferSize(totalPages, processes)
+	pageBufferSize := calculateOptimalBufferSize(extractCount, processes)
 	pages := make(chan int, pageBufferSize)
 
-	// Track metrics
 	var successCount int64
 	var errorCount int64
+	var completedCount int64
+	var lastProgressTime int64
 
-	// Start worker goroutines
 	for i := 0; i < processes; i++ {
 		wg.Add(1)
 		go func(workerID int) {
@@ -202,7 +258,6 @@ func (e *Extractor) ExtractPages() error {
 			for page := range pages {
 				pageStart := time.Now()
 
-				// Record queue depth periodically
 				if processedPages%10 == 0 {
 					e.metricsCollector.RecordPageQueueDepth(len(pages))
 				}
@@ -216,11 +271,17 @@ func (e *Extractor) ExtractPages() error {
 				if result.Success() {
 					atomic.AddInt64(&successCount, 1)
 				} else if errors.Is(result.TextErr, context.Canceled) {
+					atomic.AddInt64(&errorCount, 1)
+					atomic.AddInt64(&completedCount, 1)
 					return
 				} else {
 					atomic.AddInt64(&errorCount, 1)
 					e.logAsync("Worker %d: page %d: %s", workerID, page, result.ErrorSummary())
 				}
+
+				// Progress reporting
+				completed := atomic.AddInt64(&completedCount, 1)
+				e.reportProgress(completed, int64(extractCount), page, result.Duration, startTime, &lastProgressTime)
 
 				e.metricsCollector.RecordWorkerTime(workerID, time.Since(pageStart))
 				processedPages++
@@ -230,12 +291,11 @@ func (e *Extractor) ExtractPages() error {
 		}(i)
 	}
 
-	// Producer: enqueue page numbers
 	go func() {
 		defer close(pages)
-		for i := 1; i <= totalPages; i++ {
+		for _, p := range pagesToExtract {
 			select {
-			case pages <- i:
+			case pages <- p:
 			case <-e.ctx.Done():
 				return
 			}
@@ -243,31 +303,44 @@ func (e *Extractor) ExtractPages() error {
 	}()
 
 	wg.Wait()
+	return successCount, errorCount
+}
 
-	if err := e.createMainMarkdown(); err != nil {
-		return err
+// reportProgress logs extraction progress, rate-limited for large PDFs.
+func (e *Extractor) reportProgress(completed, total int64, page int, pageDur time.Duration, startTime time.Time, lastProgressTime *int64) {
+	now := time.Now().UnixNano()
+	lastProg := atomic.LoadInt64(lastProgressTime)
+	shouldReport := false
+	if total <= 10 {
+		shouldReport = true
+	} else if now-lastProg > 2e9 {
+		shouldReport = true
+	} else if completed*100/total%5 == 0 {
+		shouldReport = true
 	}
+	if shouldReport && atomic.CompareAndSwapInt64(lastProgressTime, lastProg, now) {
+		pct := completed * 100 / total
+		remaining := total - completed
+		avgDur := time.Since(startTime) / time.Duration(completed)
+		eta := time.Duration(remaining) * avgDur
+		e.logAsync("[%d/%d] %d%% - Page %d (%.1fs) ETA %s", completed, total, pct, page, pageDur.Seconds(), eta.Round(time.Second))
+	}
+}
 
+// reportExtractionSummary logs the final extraction statistics.
+func (e *Extractor) reportExtractionSummary(startTime time.Time, successCount, errorCount int64, extractCount int) {
 	duration := time.Since(startTime)
-	successful := atomic.LoadInt64(&successCount)
-	failed := atomic.LoadInt64(&errorCount)
 
 	e.logAsync("")
 	e.logAsync("Extraction completed in %.2f seconds", duration.Seconds())
-	e.logAsync("Successfully extracted %d out of %d pages", successful, totalPages)
-	if failed > 0 {
-		e.logAsync("Failed to extract %d pages", failed)
+	e.logAsync("Successfully extracted %d out of %d pages", successCount, extractCount)
+	if errorCount > 0 {
+		e.logAsync("Failed to extract %d pages", errorCount)
 	}
-	e.logAsync("Pages per second: %.2f", float64(successful)/duration.Seconds())
+	e.logAsync("Pages per second: %.2f", float64(successCount)/duration.Seconds())
 	e.logAsync("Output directory: %s", e.outputDir)
 
-	// Print metrics
 	e.metricsCollector.PrintSummary("single")
-
-	// Cleanup resources
-	e.Cleanup()
-
-	return nil
 }
 
 // Cleanup releases resources. Safe to call multiple times.
@@ -302,7 +375,7 @@ func (e *Extractor) getPageCount() (int, error) {
 		return e.pageCount, nil
 	}
 
-	cmd := exec.CommandContext(e.ctx, "pdfinfo", e.pdfFile)
+	cmd := exec.CommandContext(e.ctx, "pdfinfo", e.pdfPath)
 	output, err := cmd.Output()
 	if err != nil {
 		return 0, fmt.Errorf("failed to run pdfinfo: %v", err)

@@ -56,3 +56,17 @@ func WithConfig(cfg *config.Options) Option {
 		c.config = cfg
 	}
 }
+
+// WithQuiet enables quiet mode (suppresses non-error output)
+func WithQuiet(q bool) Option {
+	return func(c *Client) {
+		c.config.Quiet = q
+	}
+}
+
+// WithPages sets the page range filter (e.g., "1-10,50")
+func WithPages(pages string) Option {
+	return func(c *Client) {
+		c.config.Pages = pages
+	}
+}

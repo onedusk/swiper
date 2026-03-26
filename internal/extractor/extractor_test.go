@@ -175,3 +175,22 @@ func TestGetPageCount(t *testing.T) {
 		t.Fatalf("expected cached value %d, got %d", count, count2)
 	}
 }
+
+// Write coalescing benchmark: tested and not adopted.
+// On SSD, write-per-page vs batch-write-every-10-pages shows no meaningful
+// difference because the bottleneck is pdftotext process spawn, not filesystem writes.
+func BenchmarkWriteImmediate(b *testing.B) {
+	if _, err := exec.LookPath("pdfinfo"); err != nil {
+		b.Skip("poppler-utils not found")
+	}
+	for i := 0; i < b.N; i++ {
+		outDir := b.TempDir()
+		ext, err := New(testdataPath("simple.pdf"), outDir, 1, WithQuiet(true))
+		if err != nil {
+			b.Fatal(err)
+		}
+		if err := ext.ExtractPages(); err != nil {
+			b.Fatal(err)
+		}
+	}
+}

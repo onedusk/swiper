@@ -90,7 +90,12 @@ func (e *Extractor) writePageMarkdown(result *PageResult) error {
 	if len(result.Images) > 0 {
 		buf.WriteString("## Images\n\n")
 		for _, img := range result.Images {
-			relativePath := filepath.ToSlash(filepath.Join("images", img))
+			var relativePath string
+			if e.perPageImageDirs {
+				relativePath = filepath.ToSlash(filepath.Join("images", fmt.Sprintf("page_%d", result.Page), img))
+			} else {
+				relativePath = filepath.ToSlash(filepath.Join("images", img))
+			}
 			buf.WriteString(fmt.Sprintf("![Image from page %d](%s)\n\n", result.Page, relativePath))
 		}
 	}
@@ -114,7 +119,7 @@ func (e *Extractor) writePageMarkdown(result *PageResult) error {
 // extractTextFromPage uses "pdftotext" to extract text from a specific page
 func (e *Extractor) extractTextFromPage(page int) (string, error) {
 	// Check cache first
-	cacheKey := fmt.Sprintf("%s:text:%d", e.pdfFile, page)
+	cacheKey := fmt.Sprintf("%s:text:%d", e.pdfPath, page)
 	if cached, exists := e.resultCache.Get(cacheKey, e.metricsCollector); exists {
 		e.logAsync("Cache hit for text on page %d", page)
 		return cached.Text, nil
@@ -129,7 +134,7 @@ func (e *Extractor) extractTextFromPage(page int) (string, error) {
 	defer os.Remove(tempFilePath)
 
 	// Use command pool for better command execution
-	cmd := exec.CommandContext(e.ctx, "pdftotext", "-f", strconv.Itoa(page), "-l", strconv.Itoa(page), e.pdfFile, tempFilePath)
+	cmd := exec.CommandContext(e.ctx, "pdftotext", "-f", strconv.Itoa(page), "-l", strconv.Itoa(page), e.pdfPath, tempFilePath)
 	if err := cmd.Run(); err != nil {
 		return "", fmt.Errorf("pdftotext failed for page %d: %w", page, err)
 	}
@@ -148,10 +153,52 @@ func (e *Extractor) extractTextFromPage(page int) (string, error) {
 	return text, nil
 }
 
+// extractTextBatch extracts text from a range of pages in a single pdftotext call.
+// Returns a map of page number to extracted text. Pages are split on form feed (\f).
+func (e *Extractor) extractTextBatch(startPage, endPage int) (map[int]string, error) {
+	tempFile, err := os.CreateTemp("", "batch_*.txt")
+	if err != nil {
+		return nil, fmt.Errorf("failed to create temporary file: %v", err)
+	}
+	tempFilePath := tempFile.Name()
+	tempFile.Close()
+	defer os.Remove(tempFilePath)
+
+	cmd := exec.CommandContext(e.ctx, "pdftotext", "-f", strconv.Itoa(startPage), "-l", strconv.Itoa(endPage), e.pdfPath, tempFilePath)
+	if err := cmd.Run(); err != nil {
+		return nil, fmt.Errorf("pdftotext batch failed for pages %d-%d: %w", startPage, endPage, err)
+	}
+
+	content, err := os.ReadFile(tempFilePath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read temporary file: %v", err)
+	}
+
+	// Split on form feed character (pdftotext inserts \f between pages)
+	pages := strings.Split(string(content), "\f")
+
+	result := make(map[int]string, endPage-startPage+1)
+	for i, pageText := range pages {
+		pageNum := startPage + i
+		if pageNum > endPage {
+			break
+		}
+		text := strings.TrimSpace(pageText)
+		result[pageNum] = text
+
+		// Cache each page individually
+		cacheKey := fmt.Sprintf("%s:text:%d", e.pdfPath, pageNum)
+		e.resultCache.Set(cacheKey, &cache.CachedResult{Text: text})
+		e.metricsCollector.RecordTextExtracted(len(text))
+	}
+
+	return result, nil
+}
+
 // extractImagesFromPage uses "pdfimages" to extract images from a specific page
 func (e *Extractor) extractImagesFromPage(page int) ([]string, []error) {
 	// Check cache first
-	cacheKey := fmt.Sprintf("%s:images:%d", e.pdfFile, page)
+	cacheKey := fmt.Sprintf("%s:images:%d", e.pdfPath, page)
 	if cached, exists := e.resultCache.Get(cacheKey, e.metricsCollector); exists {
 		e.logAsync("Cache hit for images on page %d", page)
 		return cached.Images, nil
@@ -166,7 +213,7 @@ func (e *Extractor) extractImagesFromPage(page int) ([]string, []error) {
 
 	// Build and run the command
 	outputPrefix := filepath.Join(tempDir, "img")
-	cmd := exec.CommandContext(e.ctx, "pdfimages", "-j", "-f", strconv.Itoa(page), "-l", strconv.Itoa(page), e.pdfFile, outputPrefix)
+	cmd := exec.CommandContext(e.ctx, "pdfimages", "-j", "-f", strconv.Itoa(page), "-l", strconv.Itoa(page), e.pdfPath, outputPrefix)
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return nil, []error{fmt.Errorf("pdfimages failed for page %d: %w (%s)", page, err, strings.TrimSpace(string(out)))}
 	}
@@ -178,30 +225,45 @@ func (e *Extractor) extractImagesFromPage(page int) ([]string, []error) {
 	}
 
 	if len(files) == 0 {
-		// No images extracted, cache empty result
 		e.resultCache.Set(cacheKey, &cache.CachedResult{Images: []string{}})
 		return []string{}, nil
 	}
 
-	// Pre-allocate result slice
-	resultImages := make([]string, 0, len(files))
+	resultImages, imageErrors := e.copyImagesFromDir(tempDir, page, files)
 
-	// Process images with limited concurrency
-	maxConcurrent := 5
-	if len(files) < maxConcurrent {
-		maxConcurrent = len(files)
+	if len(resultImages) > 0 {
+		e.resultCache.Set(cacheKey, &cache.CachedResult{Images: resultImages})
 	}
-	sem := make(chan struct{}, maxConcurrent)
+	e.metricsCollector.RecordImagesExtracted(len(resultImages))
+	e.logAsync("Extracted %d images from page %d (%d errors)", len(resultImages), page, len(imageErrors))
 
+	return resultImages, imageErrors
+}
+
+// copyImagesFromDir copies image files from a temp directory to the output image directory,
+// using concurrent goroutines with a semaphore for limited parallelism.
+func (e *Extractor) imageDestDir(page int) string {
+	if e.perPageImageDirs {
+		return filepath.Join(e.imageDir, fmt.Sprintf("page_%d", page))
+	}
+	return e.imageDir
+}
+
+func (e *Extractor) copyImagesFromDir(tempDir string, page int, files []os.DirEntry) ([]string, []error) {
 	type imageResult struct {
 		index int
 		name  string
 		err   error
 	}
+
+	maxConcurrent := 5
+	if len(files) < maxConcurrent {
+		maxConcurrent = len(files)
+	}
+	sem := make(chan struct{}, maxConcurrent)
 	resultChan := make(chan imageResult, len(files))
 
 	var wg sync.WaitGroup
-
 	fileIdx := 0
 	for _, file := range files {
 		if file.IsDir() {
@@ -217,10 +279,11 @@ func (e *Extractor) extractImagesFromPage(page int) ([]string, []error) {
 
 			srcPath := filepath.Join(tempDir, fileInfo.Name())
 			ext := filepath.Ext(fileInfo.Name())
+			destDir := e.imageDestDir(page)
+			os.MkdirAll(destDir, 0755)
 			newName := fmt.Sprintf("page_%d_img_%03d%s", page, index+1, ext)
-			destPath := filepath.Join(e.imageDir, newName)
+			destPath := filepath.Join(destDir, newName)
 
-			// Use optimized copy
 			if err := e.copyFileOptimized(srcPath, destPath); err != nil {
 				e.logAsync("Failed to copy image file %s: %v", srcPath, err)
 				resultChan <- imageResult{index: index, err: fmt.Errorf("failed to copy %s: %w", fileInfo.Name(), err)}
@@ -235,35 +298,26 @@ func (e *Extractor) extractImagesFromPage(page int) ([]string, []error) {
 	wg.Wait()
 	close(resultChan)
 
-	// Collect results in order
 	results := make([]imageResult, 0, len(resultChan))
 	for result := range resultChan {
 		results = append(results, result)
 	}
 
-	// Sort by index to maintain order
 	sort.Slice(results, func(i, j int) bool {
 		return results[i].index < results[j].index
 	})
 
-	// Separate successes and failures
+	var images []string
 	var imageErrors []error
 	for _, result := range results {
 		if result.err != nil {
 			imageErrors = append(imageErrors, result.err)
 		} else {
-			resultImages = append(resultImages, result.name)
+			images = append(images, result.name)
 		}
 	}
 
-	// Cache successful results (even partial)
-	if len(resultImages) > 0 {
-		e.resultCache.Set(cacheKey, &cache.CachedResult{Images: resultImages})
-	}
-	e.metricsCollector.RecordImagesExtracted(len(resultImages))
-	e.logAsync("Extracted %d images from page %d (%d errors)", len(resultImages), page, len(imageErrors))
-
-	return resultImages, imageErrors
+	return images, imageErrors
 }
 
 // copyFileOptimized copies a file with optimized buffer size using buffer pool manager
@@ -309,17 +363,14 @@ func (e *Extractor) copyFileOptimized(src, dst string) error {
 
 // createMainMarkdown generates an index Markdown file linking to all pages
 func (e *Extractor) createMainMarkdown() error {
-	totalPages, err := e.getPageCount()
-	if err != nil {
-		return err
-	}
+	results := e.Results() // sorted by page number, respects --pages filter
 	var content strings.Builder
-	baseName := filepath.Base(e.pdfFile)
+	baseName := filepath.Base(e.pdfPath)
 	content.WriteString(fmt.Sprintf("# %s - PDF Extract\n\n", baseName))
-	content.WriteString(fmt.Sprintf("This document contains the extracted content from `%s`.\n\n", e.pdfFile))
+	content.WriteString(fmt.Sprintf("This document contains the extracted content from `%s`.\n\n", e.pdfPath))
 	content.WriteString("## Pages\n\n")
-	for i := 1; i <= totalPages; i++ {
-		content.WriteString(fmt.Sprintf("- [Page %d](page_%d.md)\n", i, i))
+	for _, r := range results {
+		content.WriteString(fmt.Sprintf("- [Page %d](page_%d.md)\n", r.Page, r.Page))
 	}
 	mainMdPath := filepath.Join(e.outputDir, "index.md")
 	if err := os.WriteFile(mainMdPath, []byte(content.String()), 0644); err != nil {

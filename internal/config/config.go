@@ -19,6 +19,9 @@ type Options struct {
 	Profile      string `yaml:"profile"`      // CPU or memory profiling
 	CacheResults bool   `yaml:"cache_results"` // Cache extracted text/images
 	InputDir     string `yaml:"input_dir"`     // For batch processing
+	Pages        string `yaml:"pages"`         // Page range filter (e.g., "1-10,50")
+	Quiet        bool   `yaml:"quiet"`         // Suppress non-error output
+	Resume       bool   `yaml:"resume"`        // Resume batch processing from last state
 }
 
 // LoadFromFile reads a YAML configuration file.
@@ -84,6 +87,12 @@ func (opts *Options) Validate() error {
 		errs = append(errs, fmt.Errorf("process count must be >= 0, got %d", opts.ProcessCount))
 	}
 
+	if opts.Pages != "" {
+		if _, err := ParsePageRanges(opts.Pages); err != nil {
+			errs = append(errs, fmt.Errorf("invalid page range: %w", err))
+		}
+	}
+
 	if opts.PdfFile != "" {
 		if _, err := os.Stat(opts.PdfFile); err != nil {
 			errs = append(errs, fmt.Errorf("PDF file not accessible: %w", err))
@@ -134,5 +143,14 @@ func (opts *Options) Merge(other *Options) {
 	}
 	if other.CacheResults {
 		opts.CacheResults = other.CacheResults
+	}
+	if other.Pages != "" {
+		opts.Pages = other.Pages
+	}
+	if other.Quiet {
+		opts.Quiet = other.Quiet
+	}
+	if other.Resume {
+		opts.Resume = other.Resume
 	}
 }
