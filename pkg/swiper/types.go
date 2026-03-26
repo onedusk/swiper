@@ -1,14 +1,29 @@
 package swiper
 
-import "github.com/onedusk/swiper/internal/config"
+import (
+	"time"
+
+	"github.com/onedusk/swiper/internal/config"
+)
+
+// PageSummary represents the extraction outcome for a single page.
+type PageSummary struct {
+	Page       int
+	HasText    bool
+	ImageCount int
+	Errors     []string
+	Duration   time.Duration
+}
 
 // Result represents the result of a PDF extraction
 type Result struct {
-	PDFPath    string
-	OutputDir  string
-	PageCount  int
-	Success    bool
-	Error      error
+	PDFPath     string
+	OutputDir   string
+	PageCount   int
+	Success     bool
+	Error       error
+	PageResults []PageSummary
+	Duration    time.Duration
 }
 
 // Option configures the Client

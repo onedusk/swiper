@@ -17,80 +17,97 @@ import (
 )
 
 // processPage extracts text and images from a page and writes a Markdown file
-func (e *Extractor) processPage(page int) error {
+func (e *Extractor) processPage(page int) *PageResult {
 	start := time.Now()
 	defer func() {
 		e.metricsCollector.RecordPageProcessed()
 		e.metricsCollector.RecordProcessingTime(time.Since(start))
 	}()
 
+	result := &PageResult{Page: page}
+
 	// Check if context is cancelled
 	select {
 	case <-e.ctx.Done():
-		return e.ctx.Err()
+		result.TextErr = e.ctx.Err()
+		result.Duration = time.Since(start)
+		return result
 	default:
 	}
 
 	// Extract text and images in parallel
-	var text string
-	var images []string
-	var textErr, imgErr error
 	var wg sync.WaitGroup
-
 	wg.Add(2)
 	go func() {
 		defer wg.Done()
-		text, textErr = e.extractTextFromPage(page)
+		result.Text, result.TextErr = e.extractTextFromPage(page)
 	}()
+	var imgErrors []error
 	go func() {
 		defer wg.Done()
-		images, imgErr = e.extractImagesFromPage(page)
+		result.Images, imgErrors = e.extractImagesFromPage(page)
 	}()
 	wg.Wait()
+	result.ImageErrors = imgErrors
 
-	if textErr != nil {
-		e.logAsync("Error extracting text from page %d: %v", page, textErr)
+	if result.TextErr != nil {
+		e.logAsync("Error extracting text from page %d: %v", page, result.TextErr)
 	}
-	if imgErr != nil {
-		e.logAsync("Error extracting images from page %d: %v", page, imgErr)
+	if len(result.ImageErrors) > 0 {
+		e.logAsync("Image errors on page %d: %s", page, result.ErrorSummary())
 	}
 
-	// Get buffer from pool
+	// Write markdown (even for partial results)
+	if err := e.writePageMarkdown(result); err != nil {
+		e.logAsync("Failed to write markdown for page %d: %v", page, err)
+		if result.TextErr == nil {
+			result.TextErr = err
+		}
+	}
+
+	result.Duration = time.Since(start)
+	return result
+}
+
+// writePageMarkdown writes the markdown file for a processed page
+func (e *Extractor) writePageMarkdown(result *PageResult) error {
 	buf := e.bufferPool.Get().(*bytes.Buffer)
 	buf.Reset()
 	defer e.bufferPool.Put(buf)
 
-	buf.WriteString(fmt.Sprintf("# Page %d\n\n", page))
+	// Embed error comment if any extraction errors occurred
+	buf.WriteString(result.MarkdownErrorComment())
 
-	if strings.TrimSpace(text) != "" {
+	buf.WriteString(fmt.Sprintf("# Page %d\n\n", result.Page))
+
+	if strings.TrimSpace(result.Text) != "" {
 		buf.WriteString("## Text Content\n\n")
 		buf.WriteString("```\n")
-		buf.WriteString(text)
+		buf.WriteString(result.Text)
 		buf.WriteString("\n```\n\n")
 	}
 
-	if len(images) > 0 {
+	if len(result.Images) > 0 {
 		buf.WriteString("## Images\n\n")
-		for _, img := range images {
+		for _, img := range result.Images {
 			relativePath := filepath.ToSlash(filepath.Join("images", img))
-			buf.WriteString(fmt.Sprintf("![Image from page %d](%s)\n\n", page, relativePath))
+			buf.WriteString(fmt.Sprintf("![Image from page %d](%s)\n\n", result.Page, relativePath))
 		}
 	}
 
-	outputFilename := filepath.Join(e.outputDir, fmt.Sprintf("page_%d.md", page))
+	outputFilename := filepath.Join(e.outputDir, fmt.Sprintf("page_%d.md", result.Page))
 
-	// Write with buffered I/O
 	file, err := os.Create(outputFilename)
 	if err != nil {
-		return fmt.Errorf("failed to create markdown file for page %d: %v", page, err)
+		return fmt.Errorf("failed to create markdown file for page %d: %v", result.Page, err)
 	}
 	defer file.Close()
 
 	if _, err := io.Copy(file, bytes.NewReader(buf.Bytes())); err != nil {
-		return fmt.Errorf("failed to write markdown file for page %d: %v", page, err)
+		return fmt.Errorf("failed to write markdown file for page %d: %v", result.Page, err)
 	}
 
-	e.logAsync("Saved page %d to %s", page, outputFilename)
+	e.logAsync("Saved page %d to %s", result.Page, outputFilename)
 	return nil
 }
 
@@ -112,10 +129,9 @@ func (e *Extractor) extractTextFromPage(page int) (string, error) {
 	defer os.Remove(tempFilePath)
 
 	// Use command pool for better command execution
-	cmd := exec.Command("pdftotext", "-f", strconv.Itoa(page), "-l", strconv.Itoa(page), e.pdfFile, tempFilePath)
+	cmd := exec.CommandContext(e.ctx, "pdftotext", "-f", strconv.Itoa(page), "-l", strconv.Itoa(page), e.pdfFile, tempFilePath)
 	if err := cmd.Run(); err != nil {
-		e.logAsync("Error extracting text from page %d: %v", page, err)
-		return "", nil
+		return "", fmt.Errorf("pdftotext failed for page %d: %w", page, err)
 	}
 
 	content, err := os.ReadFile(tempFilePath)
@@ -133,7 +149,7 @@ func (e *Extractor) extractTextFromPage(page int) (string, error) {
 }
 
 // extractImagesFromPage uses "pdfimages" to extract images from a specific page
-func (e *Extractor) extractImagesFromPage(page int) ([]string, error) {
+func (e *Extractor) extractImagesFromPage(page int) ([]string, []error) {
 	// Check cache first
 	cacheKey := fmt.Sprintf("%s:images:%d", e.pdfFile, page)
 	if cached, exists := e.resultCache.Get(cacheKey, e.metricsCollector); exists {
@@ -144,22 +160,21 @@ func (e *Extractor) extractImagesFromPage(page int) ([]string, error) {
 	// Get a temporary directory from pool
 	tempDir, err := e.tempDirPool.GetTempDir()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get temporary directory: %v", err)
+		return nil, []error{fmt.Errorf("failed to get temporary directory: %v", err)}
 	}
 	defer e.tempDirPool.ReturnTempDir(tempDir)
 
 	// Build and run the command
 	outputPrefix := filepath.Join(tempDir, "img")
-	cmd := exec.Command("pdfimages", "-j", "-f", strconv.Itoa(page), "-l", strconv.Itoa(page), e.pdfFile, outputPrefix)
+	cmd := exec.CommandContext(e.ctx, "pdfimages", "-j", "-f", strconv.Itoa(page), "-l", strconv.Itoa(page), e.pdfFile, outputPrefix)
 	if out, err := cmd.CombinedOutput(); err != nil {
-		e.logAsync("Error extracting images from page %d: %s", page, string(out))
-		return nil, nil // Return empty slice on error
+		return nil, []error{fmt.Errorf("pdfimages failed for page %d: %w (%s)", page, err, strings.TrimSpace(string(out)))}
 	}
 
 	// List files in the temporary directory
 	files, err := os.ReadDir(tempDir)
 	if err != nil {
-		return nil, fmt.Errorf("failed to list files in temp dir: %v", err)
+		return nil, []error{fmt.Errorf("failed to list files in temp dir: %v", err)}
 	}
 
 	if len(files) == 0 {
@@ -181,12 +196,11 @@ func (e *Extractor) extractImagesFromPage(page int) ([]string, error) {
 	type imageResult struct {
 		index int
 		name  string
+		err   error
 	}
 	resultChan := make(chan imageResult, len(files))
 
 	var wg sync.WaitGroup
-	var copyErr error
-	var errOnce sync.Once
 
 	fileIdx := 0
 	for _, file := range files {
@@ -208,10 +222,8 @@ func (e *Extractor) extractImagesFromPage(page int) ([]string, error) {
 
 			// Use optimized copy
 			if err := e.copyFileOptimized(srcPath, destPath); err != nil {
-				errOnce.Do(func() {
-					copyErr = fmt.Errorf("failed to copy %s: %v", fileInfo.Name(), err)
-				})
 				e.logAsync("Failed to copy image file %s: %v", srcPath, err)
+				resultChan <- imageResult{index: index, err: fmt.Errorf("failed to copy %s: %w", fileInfo.Name(), err)}
 				return
 			}
 
@@ -221,12 +233,7 @@ func (e *Extractor) extractImagesFromPage(page int) ([]string, error) {
 	}
 
 	wg.Wait()
-	close(sem)
 	close(resultChan)
-
-	if copyErr != nil {
-		return nil, copyErr
-	}
 
 	// Collect results in order
 	results := make([]imageResult, 0, len(resultChan))
@@ -239,17 +246,24 @@ func (e *Extractor) extractImagesFromPage(page int) ([]string, error) {
 		return results[i].index < results[j].index
 	})
 
-	// Build final image list
+	// Separate successes and failures
+	var imageErrors []error
 	for _, result := range results {
-		resultImages = append(resultImages, result.name)
+		if result.err != nil {
+			imageErrors = append(imageErrors, result.err)
+		} else {
+			resultImages = append(resultImages, result.name)
+		}
 	}
 
-	// Cache the result
-	e.resultCache.Set(cacheKey, &cache.CachedResult{Images: resultImages})
+	// Cache successful results (even partial)
+	if len(resultImages) > 0 {
+		e.resultCache.Set(cacheKey, &cache.CachedResult{Images: resultImages})
+	}
 	e.metricsCollector.RecordImagesExtracted(len(resultImages))
-	e.logAsync("Extracted %d images from page %d", len(resultImages), page)
+	e.logAsync("Extracted %d images from page %d (%d errors)", len(resultImages), page, len(imageErrors))
 
-	return resultImages, nil
+	return resultImages, imageErrors
 }
 
 // copyFileOptimized copies a file with optimized buffer size using buffer pool manager

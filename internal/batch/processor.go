@@ -2,7 +2,6 @@ package batch
 
 import (
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -11,6 +10,7 @@ import (
 	"time"
 
 	"github.com/onedusk/swiper/internal/extractor"
+	alog "github.com/onedusk/swiper/internal/log"
 	"github.com/onedusk/swiper/internal/metrics"
 	"github.com/onedusk/swiper/internal/pool"
 )
@@ -20,7 +20,7 @@ type Processor struct {
 	inputDir         string
 	outputDir        string
 	processCount     int
-	logChan          chan string
+	logger           *alog.AsyncLogger
 	concurrentPDFs   int // Number of PDFs to process simultaneously
 	workerPool       chan struct{}
 	metricsCollector *metrics.Collector
@@ -65,7 +65,7 @@ func New(inputDir, outputDir string, processCount int) (*Processor, error) {
 		logChannelSize = concurrentPDFs * 50
 	}
 
-	logChan := make(chan string, logChannelSize)
+	logger := alog.New(logChannelSize, false)
 	workerPool := make(chan struct{}, concurrentPDFs)
 
 	metricsCollector := metrics.NewCollector()
@@ -73,33 +73,19 @@ func New(inputDir, outputDir string, processCount int) (*Processor, error) {
 		inputDir:         inputDir,
 		outputDir:        outputDir,
 		processCount:     processCount,
-		logChan:          logChan,
+		logger:           logger,
 		concurrentPDFs:   concurrentPDFs,
 		workerPool:       workerPool,
 		metricsCollector: metricsCollector,
 		bufferManager:    pool.NewBufferPoolManager(metricsCollector),
 	}
 
-	// Start async logger
-	go batch.asyncLogger()
-
 	return batch, nil
-}
-
-// asyncLogger handles async logging for batch processor
-func (b *Processor) asyncLogger() {
-	for msg := range b.logChan {
-		log.Print(msg)
-	}
 }
 
 // logAsync sends a log message asynchronously
 func (b *Processor) logAsync(format string, v ...interface{}) {
-	select {
-	case b.logChan <- fmt.Sprintf(format, v...):
-	default:
-		log.Printf(format, v...)
-	}
+	b.logger.Log(format, v...)
 }
 
 // FindPDFs finds all PDF files in the input directory
@@ -221,9 +207,9 @@ func (b *Processor) ProcessAll() error {
 
 	overallDuration := time.Since(overallStart).Seconds()
 
-	b.logAsync("\n" + strings.Repeat("=", 50))
+	b.logAsync("%s", "\n"+strings.Repeat("=", 50))
 	b.logAsync("BATCH PROCESSING COMPLETE")
-	b.logAsync(strings.Repeat("=", 50))
+	b.logAsync("%s", strings.Repeat("=", 50))
 	b.logAsync("Total time: %.2f seconds", overallDuration)
 	b.logAsync("Successfully processed: %d/%d PDFs", successCount, len(pdfFiles))
 	b.logAsync("Average time per PDF: %.2f seconds", overallDuration/float64(len(pdfFiles)))
@@ -240,9 +226,8 @@ func (b *Processor) ProcessAll() error {
 
 	b.logAsync("\nAll extracted content saved to: %s", b.outputDir)
 
-	// Close log channel
-	close(b.logChan)
-	time.Sleep(100 * time.Millisecond)
+	// Flush logger
+	b.logger.Close()
 
 	return nil
 }

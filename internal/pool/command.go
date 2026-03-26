@@ -3,28 +3,30 @@ package pool
 import (
 	"context"
 	"os/exec"
-	"sync"
 	"time"
 )
 
 // CommandPool manages a pool of reusable command executors
 type CommandPool struct {
-	mu       sync.Mutex
-	cmdCache map[string]*exec.Cmd
-	ctx      context.Context
+	ctx     context.Context
+	timeout time.Duration
 }
 
-// NewCommandPool creates a new command pool
-func NewCommandPool(ctx context.Context) *CommandPool {
+// NewCommandPool creates a new command pool with the given timeout.
+// If timeout <= 0, defaults to 30 seconds.
+func NewCommandPool(ctx context.Context, timeout time.Duration) *CommandPool {
+	if timeout <= 0 {
+		timeout = 30 * time.Second
+	}
 	return &CommandPool{
-		cmdCache: make(map[string]*exec.Cmd),
-		ctx:      ctx,
+		ctx:     ctx,
+		timeout: timeout,
 	}
 }
 
-// ExecuteCommand executes a command with timeout and caching
+// ExecuteCommand executes a command with the configured timeout
 func (p *CommandPool) ExecuteCommand(name string, args ...string) ([]byte, error) {
-	ctx, cancel := context.WithTimeout(p.ctx, 30*time.Second)
+	ctx, cancel := context.WithTimeout(p.ctx, p.timeout)
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, name, args...)

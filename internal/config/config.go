@@ -1,6 +1,8 @@
 package config
 
 import (
+	"errors"
+	"fmt"
 	"os"
 	"runtime"
 
@@ -54,10 +56,57 @@ func (opts *Options) SetDefaults() {
 	}
 }
 
-// Validate checks if the configuration is valid
+// Validate checks if the configuration is valid.
+// Enforces mode exclusivity, validates field values, and checks file/dir existence.
 func (opts *Options) Validate() error {
-	// Add validation logic as needed
-	return nil
+	var errs []error
+
+	// Count active modes
+	modeCount := 0
+	if opts.PdfFile != "" {
+		modeCount++
+	}
+	if opts.InputDir != "" {
+		modeCount++
+	}
+	if opts.ScanDir != "" {
+		modeCount++
+	}
+
+	if modeCount == 0 {
+		return fmt.Errorf("no input specified: use -file for single PDF, -dir for batch processing, or -scan to scan for PDFs")
+	}
+	if modeCount > 1 {
+		return fmt.Errorf("conflicting modes: specify only one of -file, -dir, or -scan")
+	}
+
+	if opts.ProcessCount < 0 {
+		errs = append(errs, fmt.Errorf("process count must be >= 0, got %d", opts.ProcessCount))
+	}
+
+	if opts.PdfFile != "" {
+		if _, err := os.Stat(opts.PdfFile); err != nil {
+			errs = append(errs, fmt.Errorf("PDF file not accessible: %w", err))
+		}
+	}
+	if opts.InputDir != "" {
+		info, err := os.Stat(opts.InputDir)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("input directory not accessible: %w", err))
+		} else if !info.IsDir() {
+			errs = append(errs, fmt.Errorf("input path is not a directory: %s", opts.InputDir))
+		}
+	}
+	if opts.ScanDir != "" {
+		info, err := os.Stat(opts.ScanDir)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("scan directory not accessible: %w", err))
+		} else if !info.IsDir() {
+			errs = append(errs, fmt.Errorf("scan path is not a directory: %s", opts.ScanDir))
+		}
+	}
+
+	return errors.Join(errs...)
 }
 
 // Merge merges two Options structs, with values from 'other' taking precedence

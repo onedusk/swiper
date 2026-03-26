@@ -3,12 +3,13 @@ package extractor
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
-	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -16,6 +17,7 @@ import (
 	"time"
 
 	"github.com/onedusk/swiper/internal/cache"
+	alog "github.com/onedusk/swiper/internal/log"
 	"github.com/onedusk/swiper/internal/metrics"
 	"github.com/onedusk/swiper/internal/pool"
 )
@@ -28,7 +30,7 @@ type Extractor struct {
 	processCount     int
 	bufferPool       *sync.Pool
 	bufferManager    *pool.BufferPoolManager
-	logChan          chan string
+	logger           *alog.AsyncLogger
 	tempDirPool      *pool.TempDirPool
 	pageCount        int
 	pageCountMu      sync.Mutex
@@ -38,6 +40,8 @@ type Extractor struct {
 	cancel           context.CancelFunc
 	commandPool      *pool.CommandPool
 	cleanupOnce      sync.Once
+	pageResults      []*PageResult
+	pageResultsMu    sync.Mutex
 }
 
 // New creates a new extractor instance
@@ -92,8 +96,8 @@ func New(pdfFile, outputDir string, processCount int, opts ...Option) (*Extracto
 		logChannelSize = processCount * 50
 	}
 
-	// Create async logging channel
-	logChan := make(chan string, logChannelSize)
+	// Create async logger
+	logger := alog.New(logChannelSize, false)
 
 	// Pre-create temp directories pool
 	tempPoolSize := processCount * 2
@@ -112,23 +116,20 @@ func New(pdfFile, outputDir string, processCount int, opts ...Option) (*Extracto
 		imageDir:         imageDir,
 		bufferPool:       bufferPool,
 		bufferManager:    bufferManager,
-		logChan:          logChan,
+		logger:           logger,
 		tempDirPool:      tempDirPool,
 		pageCount:        -1, // Cache -1 means not yet fetched
 		resultCache:      cache.NewResultCache(),
 		metricsCollector: metricsCollector,
 		ctx:              ctx,
 		cancel:           cancel,
-		commandPool:      pool.NewCommandPool(ctx),
+		commandPool:      pool.NewCommandPool(ctx, 30*time.Second),
 	}
 
 	// Apply options
 	for _, opt := range opts {
 		opt(extractor)
 	}
-
-	// Start async logger
-	go extractor.asyncLogger()
 
 	return extractor, nil
 }
@@ -147,6 +148,13 @@ func WithMetrics(m *metrics.Collector) Option {
 func WithCache(c *cache.ResultCache) Option {
 	return func(e *Extractor) {
 		e.resultCache = c
+	}
+}
+
+// WithLogger sets a custom async logger (for sharing across components)
+func WithLogger(l *alog.AsyncLogger) Option {
+	return func(e *Extractor) {
+		e.logger = l
 	}
 }
 
@@ -170,6 +178,8 @@ func (e *Extractor) ExtractPages() error {
 
 	e.logAsync("Extracting %d pages from %s using %d processes", totalPages, e.pdfFile, processes)
 	startTime := time.Now()
+
+	e.pageResults = make([]*PageResult, 0, totalPages)
 
 	var wg sync.WaitGroup
 
@@ -197,13 +207,19 @@ func (e *Extractor) ExtractPages() error {
 					e.metricsCollector.RecordPageQueueDepth(len(pages))
 				}
 
-				if err := e.processPage(page); err == nil {
+				result := e.processPage(page)
+
+				e.pageResultsMu.Lock()
+				e.pageResults = append(e.pageResults, result)
+				e.pageResultsMu.Unlock()
+
+				if result.Success() {
 					atomic.AddInt64(&successCount, 1)
-				} else if err == context.Canceled {
-					return // Exit early if cancelled
+				} else if errors.Is(result.TextErr, context.Canceled) {
+					return
 				} else {
 					atomic.AddInt64(&errorCount, 1)
-					e.logAsync("Worker %d: Error processing page %d: %v", workerID, page, err)
+					e.logAsync("Worker %d: page %d: %s", workerID, page, result.ErrorSummary())
 				}
 
 				e.metricsCollector.RecordWorkerTime(workerID, time.Since(pageStart))
@@ -250,7 +266,6 @@ func (e *Extractor) ExtractPages() error {
 
 	// Cleanup resources
 	e.Cleanup()
-	time.Sleep(100 * time.Millisecond)
 
 	return nil
 }
@@ -260,8 +275,22 @@ func (e *Extractor) Cleanup() {
 	e.cleanupOnce.Do(func() {
 		e.cancel()
 		e.tempDirPool.Cleanup()
-		close(e.logChan)
+		e.logger.Close()
 	})
+}
+
+// Results returns the per-page extraction results, sorted by page number.
+// Must be called after ExtractPages completes.
+func (e *Extractor) Results() []*PageResult {
+	e.pageResultsMu.Lock()
+	defer e.pageResultsMu.Unlock()
+
+	results := make([]*PageResult, len(e.pageResults))
+	copy(results, e.pageResults)
+	sort.Slice(results, func(i, j int) bool {
+		return results[i].Page < results[j].Page
+	})
+	return results
 }
 
 // getPageCount returns the total number of pages in the PDF
@@ -273,7 +302,7 @@ func (e *Extractor) getPageCount() (int, error) {
 		return e.pageCount, nil
 	}
 
-	cmd := exec.Command("pdfinfo", e.pdfFile)
+	cmd := exec.CommandContext(e.ctx, "pdfinfo", e.pdfFile)
 	output, err := cmd.Output()
 	if err != nil {
 		return 0, fmt.Errorf("failed to run pdfinfo: %v", err)
@@ -295,25 +324,14 @@ func (e *Extractor) getPageCount() (int, error) {
 	return 0, fmt.Errorf("failed to parse page count from pdfinfo")
 }
 
-// asyncLogger handles async logging
-func (e *Extractor) asyncLogger() {
-	for msg := range e.logChan {
-		log.Print(msg)
-	}
-}
-
 // logAsync sends a log message asynchronously
 func (e *Extractor) logAsync(format string, v ...interface{}) {
-	select {
-	case e.logChan <- fmt.Sprintf(format, v...):
-	default:
-		log.Printf(format, v...)
-	}
+	e.logger.Log(format, v...)
 }
 
 // calculateOptimalBufferSize determines the best channel buffer size
 func calculateOptimalBufferSize(totalPages, processes int) int {
-	bufferSize := min(totalPages, processes*4)
+	var bufferSize int
 
 	if totalPages <= 10 {
 		bufferSize = totalPages

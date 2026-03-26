@@ -22,7 +22,7 @@ func main() {
 	processCountFlag := flag.Int("processes", 0, "Number of processes to use")
 	configFlag := flag.String("config", "", "Path to a YAML configuration file")
 	scanDirFlag := flag.String("scan", "", "Scan directory for PDF files and copy to pdf-docs")
-	copyDirFlag := flag.String("copydir", "pdf-docs", "Directory to copy PDFs to (default: pdf-docs)")
+	copyDirFlag := flag.String("copydir", "", "Directory to copy PDFs to (default: pdf-docs)")
 	profileFlag := flag.String("profile", "", "Enable profiling (cpu or memory)")
 	cacheFlag := flag.Bool("cache", false, "Enable result caching")
 	benchmarkFlag := flag.Bool("benchmark", false, "Run in benchmark mode with detailed metrics")
@@ -67,21 +67,10 @@ func main() {
 		log.Printf("Using %d CPU cores", runtime.NumCPU())
 	}
 
-	// Check if scan mode is requested
-	if *scanDirFlag != "" {
-		runScanner(*scanDirFlag, *copyDirFlag)
-		return
-	}
-
-	// Check if batch processing mode is requested
-	if *inputDirFlag != "" {
-		runBatchProcessor(*inputDirFlag, *outputDirFlag, *processCountFlag)
-		return
-	}
-
-	// Load configuration
+	// Build configuration from all flags
 	opts := &config.Options{
 		PdfFile:      *pdfFileFlag,
+		InputDir:     *inputDirFlag,
 		OutputDir:    *outputDirFlag,
 		ProcessCount: *processCountFlag,
 		ScanDir:      *scanDirFlag,
@@ -90,26 +79,33 @@ func main() {
 		CacheResults: *cacheFlag,
 	}
 
-	// Load from config file if provided
+	// Load from config file if provided (CLI takes precedence)
 	if *configFlag != "" {
 		configOpts, err := config.LoadFromFile(*configFlag)
 		if err != nil {
 			log.Fatalf("Error loading config: %v", err)
 		}
-		// Merge CLI options with config file (CLI takes precedence)
 		configOpts.Merge(opts)
 		opts = configOpts
 	}
 
-	if opts.PdfFile == "" {
-		log.Fatal("Error: No input specified. Use -file for single PDF, -dir for batch processing, or -scan to copy PDFs")
-	}
-
-	// Set defaults
+	// Set defaults before validation
 	opts.SetDefaults()
 
-	// Run single PDF extraction
-	runSingleExtraction(opts)
+	// Validate configuration
+	if err := opts.Validate(); err != nil {
+		log.Fatalf("Invalid configuration: %v", err)
+	}
+
+	// Dispatch based on mode
+	switch {
+	case opts.ScanDir != "":
+		runScanner(opts.ScanDir, opts.CopyDir)
+	case opts.InputDir != "":
+		runBatchProcessor(opts.InputDir, opts.OutputDir, opts.ProcessCount)
+	default:
+		runSingleExtraction(opts)
+	}
 }
 
 func runSingleExtraction(opts *config.Options) {

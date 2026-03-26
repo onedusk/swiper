@@ -11,7 +11,7 @@ Swiper is a high-performance PDF extraction tool written in Go that converts PDF
 ### Build & Run
 ```bash
 # Build the binary
-go build -o swiper main.go
+go build -o swiper ./cmd/swiper/
 
 # Run with a single PDF
 ./swiper -file document.pdf [-output output_dir] [-processes 8]
@@ -47,21 +47,26 @@ apt-get install poppler-utils  # Ubuntu/Debian
 
 ### Core Components
 
-1. **Extractor** (`main.go:33-400`): Main PDF processing engine
-   - Manages concurrent page extraction with worker pools
-   - Uses buffered channels for async logging
-   - Implements temp directory pooling for performance
-   - Caches page count to avoid redundant calls
+1. **Extractor** (`internal/extractor/`): Main PDF processing engine
+   - `extractor.go` — manages concurrent page extraction with worker pools, async logging, temp directory pooling
+   - `page.go` — per-page text extraction and image processing
 
-2. **PDFScanner** (`main.go:443-631`): PDF discovery and collection
+2. **PDFScanner** (`internal/scanner/scanner.go`): PDF discovery and collection
    - Recursively scans directories for PDF files
    - Copies PDFs with collision handling (timestamps)
    - Progress tracking with file size statistics
 
-3. **BatchProcessor** (`main.go:633-806`): Batch PDF processing
+3. **BatchProcessor** (`internal/batch/processor.go`): Batch PDF processing
    - Processes multiple PDFs sequentially
    - Each PDF internally uses parallel page processing
    - Comprehensive error tracking and reporting
+
+4. **Supporting packages:**
+   - `internal/config/` — CLI flag parsing, YAML config, defaults, validation
+   - `internal/pool/` — buffer pooling (`sync.Pool`), command execution, temp directory pooling
+   - `internal/cache/` — page count caching
+   - `internal/metrics/` — performance metrics collection and reporting
+   - `pkg/swiper/` — public API (`client.go`) and types (`types.go`)
 
 ### Performance Optimizations
 
@@ -82,11 +87,28 @@ apt-get install poppler-utils  # Ubuntu/Debian
 
 ```
 swiper/
-├── main.go           # All application logic (single file for portability)
-├── go.mod            # Go module definition
-├── go.sum            # Dependency checksums
-├── swiper            # Compiled binary (gitignored)
-└── CLAUDE.md         # This file
+├── cmd/swiper/main.go          # CLI entry point
+├── internal/
+│   ├── batch/processor.go      # Batch PDF processing
+│   ├── cache/cache.go          # Page count caching
+│   ├── config/config.go        # Configuration and flag parsing
+│   ├── extractor/
+│   │   ├── extractor.go        # Core extraction engine
+│   │   └── page.go             # Per-page processing
+│   ├── metrics/
+│   │   ├── collector.go        # Metrics collection
+│   │   └── reporter.go         # Metrics reporting
+│   ├── pool/
+│   │   ├── buffer.go           # Buffer pooling (sync.Pool)
+│   │   ├── command.go          # Command execution pool
+│   │   └── tempdir.go          # Temp directory pooling
+│   └── scanner/scanner.go      # PDF discovery and collection
+├── pkg/swiper/
+│   ├── client.go               # Public API
+│   └── types.go                # Exported types
+├── go.mod
+├── go.sum
+└── CLAUDE.md
 ```
 
 Output structure (created automatically):
@@ -125,7 +147,7 @@ output_dir/           # Named after PDF or custom
 ## Development Guidelines
 
 ### Making Changes
-1. Single-file architecture - all logic in `main.go` for portability
+1. Modular architecture — entry point at `cmd/swiper/main.go`, packages in `internal/`
 2. Maintain backward compatibility with existing CLI flags
 3. Test with various PDF types (text-heavy, image-heavy, mixed)
 4. Ensure poppler-utils commands remain compatible

@@ -3,6 +3,8 @@ package swiper
 import (
 	"context"
 	"fmt"
+	"strings"
+	"time"
 
 	"github.com/onedusk/swiper/internal/batch"
 	"github.com/onedusk/swiper/internal/config"
@@ -40,6 +42,7 @@ func NewClient(opts ...Option) (*Client, error) {
 // ExtractSingle extracts a single PDF to markdown
 func (c *Client) ExtractSingle(ctx context.Context, pdfPath string) (*Result, error) {
 	outputDir := c.config.OutputDir
+	startTime := time.Now()
 
 	ext, err := extractor.New(pdfPath, outputDir, c.config.ProcessCount)
 	if err != nil {
@@ -51,10 +54,41 @@ func (c *Client) ExtractSingle(ctx context.Context, pdfPath string) (*Result, er
 		return nil, fmt.Errorf("extraction failed: %w", err)
 	}
 
+	duration := time.Since(startTime)
+
+	// Map internal PageResults to public PageSummaries
+	internalResults := ext.Results()
+	pageSummaries := make([]PageSummary, 0, len(internalResults))
+	allSuccess := true
+
+	for _, pr := range internalResults {
+		summary := PageSummary{
+			Page:       pr.Page,
+			HasText:    strings.TrimSpace(pr.Text) != "",
+			ImageCount: len(pr.Images),
+			Duration:   pr.Duration,
+		}
+		if pr.TextErr != nil {
+			summary.Errors = append(summary.Errors, fmt.Sprintf("text: %v", pr.TextErr))
+		}
+		for _, imgErr := range pr.ImageErrors {
+			if imgErr != nil {
+				summary.Errors = append(summary.Errors, fmt.Sprintf("image: %v", imgErr))
+			}
+		}
+		if len(summary.Errors) > 0 {
+			allSuccess = false
+		}
+		pageSummaries = append(pageSummaries, summary)
+	}
+
 	return &Result{
-		PDFPath:   pdfPath,
-		OutputDir: outputDir,
-		Success:   true,
+		PDFPath:     pdfPath,
+		OutputDir:   outputDir,
+		PageCount:   len(internalResults),
+		Success:     allSuccess,
+		PageResults: pageSummaries,
+		Duration:    duration,
 	}, nil
 }
 

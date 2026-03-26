@@ -3,7 +3,6 @@ package scanner
 import (
 	"fmt"
 	"io"
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -11,6 +10,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	alog "github.com/onedusk/swiper/internal/log"
 	"github.com/onedusk/swiper/internal/metrics"
 	"github.com/onedusk/swiper/internal/pool"
 )
@@ -19,7 +19,7 @@ import (
 type PDFScanner struct {
 	scanDir          string
 	copyDir          string
-	logChan          chan string
+	logger           *alog.AsyncLogger
 	bufferManager    *pool.BufferPoolManager
 	metricsCollector *metrics.Collector
 }
@@ -42,35 +42,20 @@ func New(scanDir, copyDir string) (*PDFScanner, error) {
 	}
 
 	metricsCollector := metrics.NewCollector()
-	logChan := make(chan string, 100)
 	scanner := &PDFScanner{
 		scanDir:          scanDir,
 		copyDir:          copyDir,
-		logChan:          logChan,
+		logger:           alog.New(100, false),
 		bufferManager:    pool.NewBufferPoolManager(metricsCollector),
 		metricsCollector: metricsCollector,
 	}
 
-	// Start async logger
-	go scanner.asyncLogger()
-
 	return scanner, nil
-}
-
-// asyncLogger handles async logging for scanner
-func (s *PDFScanner) asyncLogger() {
-	for msg := range s.logChan {
-		log.Print(msg)
-	}
 }
 
 // logAsync sends a log message asynchronously
 func (s *PDFScanner) logAsync(format string, v ...interface{}) {
-	select {
-	case s.logChan <- fmt.Sprintf(format, v...):
-	default:
-		log.Printf(format, v...)
-	}
+	s.logger.Log(format, v...)
 }
 
 // FindPDFs recursively finds all PDF files in the scan directory
@@ -263,8 +248,7 @@ func (s *PDFScanner) ScanAndCopy() error {
 	}
 
 	// Close log channel
-	close(s.logChan)
-	time.Sleep(100 * time.Millisecond) // Give logger time to flush
+	s.logger.Close()
 
 	return nil
 }

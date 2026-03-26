@@ -4,6 +4,14 @@ import (
 	"sync"
 )
 
+// Buffer size constants
+const (
+	SmallBufferSize  = 32 * 1024
+	MediumBufferSize = 128 * 1024
+	LargeBufferSize  = 256 * 1024
+	XLargeBufferSize = 1024 * 1024
+)
+
 // BufferPoolManager manages multiple buffer pools with different sizes
 type BufferPoolManager struct {
 	smallPool  *sync.Pool  // 32KB buffers
@@ -26,33 +34,33 @@ func NewBufferPoolManager(metrics MetricsRecorder) *BufferPoolManager {
 		smallPool: &sync.Pool{
 			New: func() interface{} {
 				if metrics != nil {
-					metrics.RecordBufferPoolCreated(32 * 1024)
+					metrics.RecordBufferPoolCreated(SmallBufferSize)
 				}
-				return make([]byte, 32*1024)
+				return make([]byte, SmallBufferSize)
 			},
 		},
 		mediumPool: &sync.Pool{
 			New: func() interface{} {
 				if metrics != nil {
-					metrics.RecordBufferPoolCreated(128 * 1024)
+					metrics.RecordBufferPoolCreated(MediumBufferSize)
 				}
-				return make([]byte, 128*1024)
+				return make([]byte, MediumBufferSize)
 			},
 		},
 		largePool: &sync.Pool{
 			New: func() interface{} {
 				if metrics != nil {
-					metrics.RecordBufferPoolCreated(256 * 1024)
+					metrics.RecordBufferPoolCreated(LargeBufferSize)
 				}
-				return make([]byte, 256*1024)
+				return make([]byte, LargeBufferSize)
 			},
 		},
 		xlargePool: &sync.Pool{
 			New: func() interface{} {
 				if metrics != nil {
-					metrics.RecordBufferPoolCreated(1024 * 1024)
+					metrics.RecordBufferPoolCreated(XLargeBufferSize)
 				}
-				return make([]byte, 1024*1024)
+				return make([]byte, XLargeBufferSize)
 			},
 		},
 		metrics: metrics,
@@ -62,11 +70,11 @@ func NewBufferPoolManager(metrics MetricsRecorder) *BufferPoolManager {
 // GetBuffer returns an appropriately sized buffer from the pool
 func (m *BufferPoolManager) GetBuffer(sizeHint int64) []byte {
 	var pool *sync.Pool
-	if sizeHint < 64*1024 {
+	if sizeHint <= SmallBufferSize {
 		pool = m.smallPool
-	} else if sizeHint < 256*1024 {
+	} else if sizeHint <= MediumBufferSize {
 		pool = m.mediumPool
-	} else if sizeHint < 512*1024 {
+	} else if sizeHint <= LargeBufferSize {
 		pool = m.largePool
 	} else {
 		pool = m.xlargePool
@@ -85,13 +93,13 @@ func (m *BufferPoolManager) PutBuffer(buffer []byte) {
 	var pool *sync.Pool
 
 	switch size {
-	case 32 * 1024:
+	case SmallBufferSize:
 		pool = m.smallPool
-	case 128 * 1024:
+	case MediumBufferSize:
 		pool = m.mediumPool
-	case 256 * 1024:
+	case LargeBufferSize:
 		pool = m.largePool
-	case 1024 * 1024:
+	case XLargeBufferSize:
 		pool = m.xlargePool
 	default:
 		// Buffer doesn't match any pool size, don't return it
