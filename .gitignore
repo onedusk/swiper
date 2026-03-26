@@ -40,3 +40,10 @@ toc.xml
 
 # Batch resume state
 .swiper-progress
+
+# Jot config (not part of swiper)
+jot.yaml
+.jotignore
+
+# Utility scripts
+scripts/
